@@ -19,38 +19,49 @@ graph TB
 
     subgraph "Business Layer"
         C --> D[Service Layer]
-        D --> E[Repository Layer]
+        D --> E[Prisma Client]
+        D --> F[Cache Service]
     end
 
     subgraph "Data Layer"
-        E --> F[PostgreSQL]
-        E --> G[Redis Cache]
-        E --> H[Redis Pub/Sub]
+        E --> G[PostgreSQL]
+        F --> H[Redis Cache]
+        F --> I[Redis Pub/Sub]
     end
 
-    subgraph "Cross-Cutting"
-        I[Logger]
-        J[Config Manager]
-        K[Error Handler]
-        L[Metrics Collector]
+    subgraph "Cross-Cutting Concerns"
+        J[Winston Logger]
+        K[Config Manager]
+        L[Error Handler]
+        M[Metrics Collector]
+        N[Swagger Docs]
     end
 
-    A -.-> I
-    D -.-> I
-    E -.-> I
-    C -.-> K
-    D -.-> K
-    E -.-> K
+    subgraph "External Services"
+        G[PostgreSQL Database]
+        H[Redis Cache]
+        I[Redis Pub/Sub]
+    end
+
+    A -.-> J
+    D -.-> J
+    E -.-> J
+    F -.-> J
+    C -.-> L
+    D -.-> L
+    A --> N
+    B --> M
 ```
 
 ### Layered Architecture Pattern
 
 The application follows a clean layered architecture:
 
-1. **API Layer**: Express routes, middleware, and controllers
-2. **Business Layer**: Services containing business logic
-3. **Data Layer**: Prisma ORM for type-safe database operations
-4. **Infrastructure Layer**: External service integrations (Redis, PostgreSQL)
+1. **API Layer**: Express routes, middleware, and controllers handle HTTP requests
+2. **Business Layer**: Services contain business logic and orchestrate data operations
+3. **Data Layer**: Prisma Client and Cache Service provide data access abstractions
+4. **Cross-Cutting Concerns**: Logger, config, error handling, and metrics span all layers
+5. **External Services**: PostgreSQL database and Redis for caching and pub/sub
 
 ## Project Structure and Conventions
 
@@ -104,6 +115,7 @@ project-root/
 
 #### Code Conventions
 
+-   **Indentation**: Use 4 spaces for all code indentation (TypeScript, JavaScript, JSON, YAML)
 -   **Classes**: PascalCase (`UserService`, `AuthController`)
 -   **Interfaces**: PascalCase with descriptive names (`UserCreateRequest`, `ApiResponse`)
 -   **Functions**: camelCase with verb-noun pattern (`createUser`, `validateToken`)
@@ -558,3 +570,140 @@ const errorHandler = (
 -   Performance monitoring and alerting
 
 This design provides a robust foundation for blockchain event processing microservices while maintaining flexibility for specific use case implementations.
+
+## Technology Stack and Package Versions
+
+### Core Framework & Runtime
+
+-   **Node.js**: v20.x LTS (recommended for stability)
+-   **Express.js**: v4.19.x (stable, mature ecosystem)
+-   **TypeScript**: v5.3.x (latest with improved performance)
+
+### Database & ORM
+
+-   **Prisma**: v5.8.x (best-in-class TypeScript ORM)
+-   **@prisma/client**: Auto-generated, matches Prisma version
+-   **PostgreSQL**: v15.x or v16.x (database server)
+
+### Redis & Caching
+
+-   **ioredis**: v5.3.x (superior Redis client with TypeScript support)
+-   **Redis**: v7.x (server version)
+
+### Authentication & Security
+
+-   **jsonwebtoken**: v9.0.x (JWT handling)
+-   **bcrypt**: v5.1.x (password hashing)
+-   **helmet**: v7.1.x (security headers)
+-   **cors**: v2.8.x (CORS handling)
+-   **express-rate-limit**: v7.1.x (rate limiting)
+
+### Validation & Configuration
+
+-   **joi**: v17.11.x (schema validation)
+-   **dotenv**: v16.3.x (environment variables)
+
+### Logging & Monitoring
+
+-   **winston**: v3.11.x (structured logging)
+-   **prom-client**: v15.1.x (Prometheus metrics)
+
+### API Documentation
+
+-   **swagger-jsdoc**: v6.2.x (OpenAPI spec generation)
+-   **swagger-ui-express**: v5.0.x (Swagger UI interface)
+
+### Development Tools
+
+-   **ts-node**: v10.9.x (TypeScript execution)
+-   **nodemon**: v3.0.x (development server)
+-   **eslint**: v8.56.x (code linting)
+-   **@typescript-eslint/parser**: v6.19.x (TypeScript ESLint parser)
+-   **@typescript-eslint/eslint-plugin**: v6.19.x (TypeScript ESLint rules)
+-   **prettier**: v3.2.x (code formatting)
+
+### Package Selection Rationale
+
+#### Why ioredis over redis package?
+
+-   Better TypeScript support and type definitions
+-   More features including clustering and pub/sub
+-   Better error handling and connection management
+-   More active maintenance and community support
+
+#### Why Winston for logging?
+
+-   Mature ecosystem with extensive transport options
+-   Excellent structured logging capabilities
+-   Good integration with monitoring systems
+-   Flexible configuration for different environments
+
+#### Why Prisma over alternatives?
+
+-   Best-in-class TypeScript integration
+-   Excellent developer experience with Prisma Studio
+-   Robust migration system
+-   Strong community and enterprise support
+-   Type-safe database operations
+
+#### Why ESLint v8 over v9?
+
+-   Stable configuration format
+-   Better ecosystem compatibility
+-   Well-established patterns and community support
+-   Avoiding breaking changes in boilerplate
+
+### Complete Package List
+
+```json
+{
+	"name": "express-ts-boilerplate",
+	"version": "1.0.0",
+	"description": "Production-ready Express.js TypeScript boilerplate for blockchain microservices",
+	"dependencies": {
+		"express": "^4.19.2",
+		"@prisma/client": "^5.8.1",
+		"prisma": "^5.8.1",
+		"ioredis": "^5.3.2",
+		"jsonwebtoken": "^9.0.2",
+		"bcrypt": "^5.1.1",
+		"helmet": "^7.1.0",
+		"cors": "^2.8.5",
+		"express-rate-limit": "^7.1.5",
+		"joi": "^17.11.0",
+		"dotenv": "^16.3.1",
+		"winston": "^3.11.0",
+		"swagger-jsdoc": "^6.2.8",
+		"swagger-ui-express": "^5.0.0",
+		"prom-client": "^15.1.0"
+	},
+	"devDependencies": {
+		"typescript": "^5.3.3",
+		"ts-node": "^10.9.2",
+		"nodemon": "^3.0.3",
+		"@types/node": "^20.11.5",
+		"@types/express": "^4.17.21",
+		"@types/jsonwebtoken": "^9.0.5",
+		"@types/bcrypt": "^5.0.2",
+		"@types/cors": "^2.8.17",
+		"@types/swagger-jsdoc": "^6.0.4",
+		"@types/swagger-ui-express": "^4.1.6",
+		"eslint": "^8.56.0",
+		"@typescript-eslint/parser": "^6.19.1",
+		"@typescript-eslint/eslint-plugin": "^6.19.1",
+		"prettier": "^3.2.4",
+		"eslint-config-prettier": "^9.1.0",
+		"eslint-plugin-prettier": "^5.1.3"
+	}
+}
+```
+
+### Version Update Strategy
+
+This boilerplate uses semantic versioning with caret (^) ranges to allow:
+
+-   **Patch updates**: Automatic (bug fixes)
+-   **Minor updates**: Automatic (new features, backward compatible)
+-   **Major updates**: Manual review required (breaking changes)
+
+For production deployments, consider using exact versions or lockfiles (package-lock.json) to ensure consistent builds across environments.
