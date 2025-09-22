@@ -1,3 +1,13 @@
 {
-    "kiroAgent.configureMCP": "Disabled"
+    "kiroAgent.configureMCP": "Disabled",
+    "cSpell.words": [
+        "lockfiles",
+        "maxmemory",
+        "NUMSUB",
+        "pmessage",
+        "psubscribe",
+        "punsubscribe",
+        "setex",
+        "Solana"
+    ]
 }
