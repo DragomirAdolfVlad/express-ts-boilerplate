@@ -1,7 +1,4 @@
-import dotenv from 'dotenv';
-
-// Load environment variables
-dotenv.config();
+import { getConfig, validateConfig } from './config';
 
 /**
  * Main application entry point
@@ -9,12 +6,18 @@ dotenv.config();
  */
 async function main(): Promise<void> {
     console.log('🚀 Express TypeScript Boilerplate');
+
+    // Validate configuration at startup
+    validateConfig();
+
+    // Get configuration
+    const config = getConfig();
+
     console.log('📦 Project foundation setup complete');
     console.log('🔧 Ready for development');
-    
-    // Placeholder for Express app initialization
-    const port = process.env.PORT ?? 3000;
-    console.log(`🌐 Server will run on port ${port}`);
+    console.log(`🌐 Server will run on port ${config.server.port}`);
+    console.log(`🗄️  Database: ${config.database.url ? 'Connected' : 'Not configured'}`);
+    console.log(`📊 Environment: ${config.server.nodeEnv}`);
 }
 
 // Handle unhandled promise rejections
