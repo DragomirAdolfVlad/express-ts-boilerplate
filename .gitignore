@@ -93,5 +93,8 @@ Thumbs.db
 prisma/dev.db
 prisma/dev.db-journal
 
+# Kiro IDE
+.kiro/specs/*/tasks.md
+
 # Docker
 .dockerignore

@@ -1,0 +1,57 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+    provider = "prisma-client-js"
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+}
+
+// User model for authentication and user management
+model User {
+    id        String   @id @default(cuid())
+    email     String   @unique
+    username  String   @unique
+    password  String
+    firstName String?
+    lastName  String?
+    isActive  Boolean  @default(true)
+    role      UserRole @default(USER)
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    // Relations
+    apiKeys ApiKey[]
+
+    @@map("users")
+}
+
+// API Key model for API authentication
+model ApiKey {
+    id          String    @id @default(cuid())
+    name        String
+    key         String    @unique
+    hashedKey   String
+    isActive    Boolean   @default(true)
+    expiresAt   DateTime?
+    lastUsedAt  DateTime?
+    permissions String[]  @default([])
+    createdAt   DateTime  @default(now())
+    updatedAt   DateTime  @updatedAt
+
+    // Relations
+    userId String
+    user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    @@map("api_keys")
+}
+
+// User roles enum
+enum UserRole {
+    ADMIN
+    USER
+    MODERATOR
+}

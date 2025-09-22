@@ -10,7 +10,12 @@
         "lint": "eslint src/**/*.ts",
         "lint:fix": "eslint src/**/*.ts --fix",
         "format": "prettier --write src/**/*.ts",
-        "format:check": "prettier --check src/**/*.ts"
+        "format:check": "prettier --check src/**/*.ts",
+        "db:generate": "prisma generate",
+        "db:migrate": "prisma migrate dev",
+        "db:seed": "ts-node prisma/seed.ts",
+        "db:reset": "prisma migrate reset --force",
+        "db:studio": "prisma studio"
     },
     "keywords": [
         "express",
@@ -61,5 +66,8 @@
     },
     "engines": {
         "node": ">=20.0.0"
+    },
+    "prisma": {
+        "seed": "ts-node prisma/seed.ts"
     }
 }
