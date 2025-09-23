@@ -5,7 +5,7 @@
 import express, { Application } from 'express';
 import { configureSecurity } from './config/security';
 import { setupSwagger } from './config/swagger';
-import { initializeContainer } from './services/container';
+import { initializeContainer } from './services/di/container';
 import { errorHandler } from './middleware/error-handler';
 import { correlationIdMiddleware, requestLoggingMiddleware } from './middleware/request-logger';
 import { config } from './config/loader';

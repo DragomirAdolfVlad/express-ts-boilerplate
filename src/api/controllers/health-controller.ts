@@ -4,11 +4,11 @@
 
 import { Request, Response } from 'express';
 import { BaseController } from './base-controller';
-import { getService } from '../../services/container';
-import { UserService } from '../../services/user-service';
-import { AuthService } from '../../services/auth-service';
-import { getPrismaClient } from '../../services/database';
-import { getRedisClient } from '../../services/redis';
+import { getService } from '../../services/di/container';
+import { UserService } from '../../services/database/user-service';
+import { AuthService } from '../../services/database/auth-service';
+import { getPrismaClient } from '../../services/database/database';
+import { getRedisClient } from '../../services/redis/redis';
 import { config } from '../../config/loader';
 import { getSecurityConfig } from '../../config/security';
 

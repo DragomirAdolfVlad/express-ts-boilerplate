@@ -2,10 +2,10 @@
  * Service container for dependency injection
  */
 
-import { getPrismaClient } from './database';
-import { getRedisClient } from './redis';
-import { cacheService } from './cache';
-import { log } from '../utils/logger';
+import { getPrismaClient } from '../database/database';
+import { getRedisClient } from '../redis/redis';
+import { cacheService } from '../redis/cache';
+import { log } from '../../utils/logger';
 
 /**
  * Service container interface
@@ -226,4 +226,3 @@ export function getServiceNames(): string[] {
 export function clearServices(): void {
     serviceRegistry.clear();
 }
-

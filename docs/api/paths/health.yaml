@@ -1,0 +1,169 @@
+# Health and monitoring endpoints
+
+/health:
+  get:
+    tags:
+      - Health
+    summary: Basic health check
+    description: Simple health check endpoint
+    operationId: healthCheck
+    responses:
+      '200':
+        description: Service is healthy
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../base.yaml#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: object
+                      properties:
+                        status:
+                          type: string
+                          example: "healthy"
+                        uptime:
+                          type: number
+                          example: 12345.67
+
+/health/detailed:
+  get:
+    tags:
+      - Health
+    summary: Detailed health check
+    description: Comprehensive health check with service dependencies
+    operationId: detailedHealthCheck
+    responses:
+      '200':
+        description: Detailed health status
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../base.yaml#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: object
+                      properties:
+                        status:
+                          type: string
+                          example: "healthy"
+                        services:
+                          type: object
+                          properties:
+                            database:
+                              type: object
+                              properties:
+                                status:
+                                  type: string
+                                  example: "healthy"
+                            redis:
+                              type: object
+                              properties:
+                                status:
+                                  type: string
+                                  example: "healthy"
+
+/health/ready:
+  get:
+    tags:
+      - Health
+    summary: Readiness check
+    description: Check if service is ready to accept requests
+    operationId: readinessCheck
+    responses:
+      '200':
+        description: Service is ready
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../base.yaml#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: object
+                      properties:
+                        ready:
+                          type: boolean
+                          example: true
+
+/health/live:
+  get:
+    tags:
+      - Health
+    summary: Liveness check
+    description: Check if service is alive
+    operationId: livenessCheck
+    responses:
+      '200':
+        description: Service is alive
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../base.yaml#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: object
+                      properties:
+                        alive:
+                          type: boolean
+                          example: true
+
+/metrics:
+  get:
+    tags:
+      - Metrics
+    summary: Application metrics
+    description: Get application metrics in Prometheus format
+    operationId: getMetrics
+    responses:
+      '200':
+        description: Metrics data
+        content:
+          text/plain:
+            schema:
+              type: string
+              example: |
+                # HELP http_requests_total Total number of HTTP requests
+                # TYPE http_requests_total counter
+                http_requests_total{method="GET",status="200"} 1234
+
+/info:
+  get:
+    tags:
+      - Info
+    summary: Service information
+    description: Get service information and capabilities
+    operationId: getServiceInfo
+    responses:
+      '200':
+        description: Service information
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../base.yaml#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                          example: "express-ts-boilerplate"
+                        version:
+                          type: string
+                          example: "1.0.0"
+                        environment:
+                          type: string
+                          example: "development"
+                        features:
+                          type: array
+                          items:
+                            type: string
+                          example: ["authentication", "rate-limiting", "health-checks"]

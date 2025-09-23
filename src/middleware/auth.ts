@@ -3,8 +3,8 @@
  */
 
 import { Request, Response, NextFunction } from 'express';
-import { AuthService } from '../services/auth-service';
-import { getService } from '../services/container';
+import { AuthService } from '../services/database/auth-service';
+import { getService } from '../services/di/container';
 import { log } from '../utils/logger';
 import { UnauthorizedError, ForbiddenError } from '../utils/errors';
 

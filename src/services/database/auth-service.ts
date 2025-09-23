@@ -6,15 +6,15 @@ import { User, ApiKey, Prisma } from '@prisma/client';
 import * as jwt from 'jsonwebtoken';
 import * as bcrypt from 'bcrypt';
 import { UserService } from './user-service';
-import { cacheService } from './cache';
-import { log, LogContext } from '../utils/logger';
-import { config } from '../config/loader';
+import { cacheService } from '../redis/cache';
+import { log, LogContext } from '../../utils/logger';
+import { config } from '../../config/loader';
 import { 
     ValidationError, 
     NotFoundError, 
     UnauthorizedError,
     InternalServerError 
-} from '../utils/errors';
+} from '../../utils/errors';
 import { HealthCheckableService, ServiceHealthCheck } from './service-base';
 
 /**

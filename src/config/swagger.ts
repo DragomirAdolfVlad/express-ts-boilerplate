@@ -5,12 +5,14 @@
 import swaggerJsdoc from 'swagger-jsdoc';
 import swaggerUi from 'swagger-ui-express';
 import { Application } from 'express';
-import path from 'path';
 import { config } from './loader';
 import { log } from '../utils/logger';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as yaml from 'js-yaml';
 
 /**
- * Swagger JSDoc options
+ * Fallback Swagger JSDoc options (used only if YAML file is not found)
  */
 const swaggerOptions: swaggerJsdoc.Options = {
     definition: {
@@ -18,217 +20,54 @@ const swaggerOptions: swaggerJsdoc.Options = {
         info: {
             title: 'Express TypeScript Boilerplate API',
             version: '1.0.0',
-            description: `
-Production-ready Express.js TypeScript boilerplate for blockchain microservices.
-
-This API provides comprehensive user management, authentication, and health monitoring
-capabilities with enterprise-grade security features.
-
-## Features
-- JWT and API Key authentication
-- Role-based access control (RBAC)
-- Rate limiting with Redis backend
-- Input validation and sanitization
-- Comprehensive health checks
-- Metrics collection
-- Security headers and CORS
-
-## Authentication
-This API supports two authentication methods:
-1. **JWT Bearer Token** - For user sessions
-2. **API Key** - For service-to-service communication
-
-## Rate Limiting
-All endpoints are rate limited. Limits vary by endpoint and authentication method.
-Rate limit information is provided in response headers.
-
-## Error Handling
-All errors follow a consistent format with appropriate HTTP status codes.
-            `,
-            contact: {
-                name: 'API Support',
-                email: 'support@example.com'
-            },
-            license: {
-                name: 'MIT',
-                url: 'https://opensource.org/licenses/MIT'
-            }
+            description: 'Production-ready Express.js TypeScript boilerplate for blockchain microservices'
         },
         servers: [
             {
-                url: `http://localhost:${config.server.port}`,
+                url: `http://localhost:${config.server.port}/api/v1`,
                 description: 'Development server'
-            },
-            {
-                url: 'https://api.example.com',
-                description: 'Production server'
-            }
-        ],
-        components: {
-            securitySchemes: {
-                bearerAuth: {
-                    type: 'http',
-                    scheme: 'bearer',
-                    bearerFormat: 'JWT',
-                    description: 'JWT token obtained from /auth/login'
-                },
-                apiKeyAuth: {
-                    type: 'apiKey',
-                    in: 'header',
-                    name: 'X-API-Key',
-                    description: 'API key in format "keyId.key"'
-                }
-            },
-            schemas: {
-                // Common schemas
-                ApiResponse: {
-                    type: 'object',
-                    required: ['success', 'meta'],
-                    properties: {
-                        success: {
-                            type: 'boolean',
-                            example: true
-                        },
-                        data: {
-                            description: 'Response data'
-                        },
-                        error: {
-                            type: 'object',
-                            properties: {
-                                code: { type: 'string', example: 'VALIDATION_ERROR' },
-                                message: { type: 'string', example: 'Validation failed' },
-                                details: { description: 'Additional error details' }
-                            }
-                        },
-                        meta: {
-                            type: 'object',
-                            properties: {
-                                timestamp: { type: 'string', format: 'date-time' },
-                                requestId: { type: 'string' },
-                                version: { type: 'string', example: 'v1' }
-                            }
-                        }
-                    }
-                },
-                // User schemas
-                User: {
-                    type: 'object',
-                    properties: {
-                        id: { type: 'string', example: 'clp1234567890abcdef' },
-                        email: { type: 'string', format: 'email', example: 'user@example.com' },
-                        username: { type: 'string', example: 'john_doe' },
-                        firstName: { type: 'string', example: 'John' },
-                        lastName: { type: 'string', example: 'Doe' },
-                        isActive: { type: 'boolean', example: true },
-                        createdAt: { type: 'string', format: 'date-time' },
-                        updatedAt: { type: 'string', format: 'date-time' }
-                    }
-                },
-                CreateUserRequest: {
-                    type: 'object',
-                    required: ['email', 'username', 'password'],
-                    properties: {
-                        email: { type: 'string', format: 'email', example: 'user@example.com' },
-                        username: { type: 'string', example: 'john_doe' },
-                        password: { type: 'string', minLength: 8, example: 'SecurePassword123!' },
-                        firstName: { type: 'string', example: 'John' },
-                        lastName: { type: 'string', example: 'Doe' }
-                    }
-                },
-                UpdateUserRequest: {
-                    type: 'object',
-                    properties: {
-                        email: { type: 'string', format: 'email' },
-                        username: { type: 'string' },
-                        password: { type: 'string', minLength: 8 },
-                        firstName: { type: 'string' },
-                        lastName: { type: 'string' },
-                        isActive: { type: 'boolean' }
-                    }
-                },
-                // Auth schemas
-                LoginRequest: {
-                    type: 'object',
-                    required: ['email', 'password'],
-                    properties: {
-                        email: { type: 'string', format: 'email', example: 'user@example.com' },
-                        password: { type: 'string', example: 'password123' }
-                    }
-                },
-                LoginResponse: {
-                    type: 'object',
-                    properties: {
-                        user: { $ref: '#/components/schemas/User' },
-                        accessToken: { type: 'string', example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' },
-                        refreshToken: { type: 'string', example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' },
-                        expiresIn: { type: 'integer', example: 900 }
-                    }
-                },
-                RefreshTokenRequest: {
-                    type: 'object',
-                    required: ['refreshToken'],
-                    properties: {
-                        refreshToken: { type: 'string', example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' }
-                    }
-                },
-                CreateApiKeyRequest: {
-                    type: 'object',
-                    required: ['name'],
-                    properties: {
-                        name: { type: 'string', example: 'My Application Key' },
-                        permissions: { type: 'array', items: { type: 'string' }, example: ['read', 'write'] },
-                        expiresAt: { type: 'string', format: 'date-time' },
-                        rateLimit: {
-                            type: 'object',
-                            properties: {
-                                requests: { type: 'integer', example: 1000 },
-                                windowMs: { type: 'integer', example: 3600000 }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        security: [
-            { bearerAuth: [] },
-            { apiKeyAuth: [] }
-        ],
-        tags: [
-            {
-                name: 'Authentication',
-                description: 'User authentication and token management'
-            },
-            {
-                name: 'Users',
-                description: 'User management operations'
-            },
-            {
-                name: 'Health',
-                description: 'Health checks and service status'
-            },
-            {
-                name: 'Metrics',
-                description: 'Application metrics and monitoring'
-            },
-            {
-                name: 'Info',
-                description: 'Service information and capabilities'
             }
         ]
     },
-    apis: [
-        // Include route files for JSDoc comments
-        path.join(__dirname, '../api/routes/v1/*.ts'),
-        path.join(__dirname, '../api/controllers/*.ts')
-    ]
+    apis: [] // No inline documentation - all documentation is in YAML
 };
+
+/**
+ * Load OpenAPI specification from YAML files
+ */
+function loadOpenApiFromYaml(): object {
+    try {
+        const yamlPath = path.join(process.cwd(), 'docs/openapi.yaml');
+        
+        if (fs.existsSync(yamlPath)) {
+            log.info('Loading OpenAPI specification from YAML file');
+            const yamlContent = fs.readFileSync(yamlPath, 'utf8');
+            const spec = yaml.load(yamlContent) as any;
+            
+            // Update server URLs with current config
+            if (spec.servers) {
+                spec.servers[0].url = `http://localhost:${config.server.port}/api/v1`;
+            }
+            
+            return spec;
+        } else {
+            log.warn('YAML OpenAPI file not found, falling back to JS definition');
+            return swaggerJsdoc(swaggerOptions);
+        }
+    } catch (error) {
+        log.error('Failed to load YAML OpenAPI specification, falling back to JS definition', {
+            error: error instanceof Error ? error.message : String(error)
+        });
+        return swaggerJsdoc(swaggerOptions);
+    }
+}
 
 /**
  * Generate OpenAPI specification
  */
 export function generateOpenApiSpec(): object {
     try {
-        const specs = swaggerJsdoc(swaggerOptions);
+        const specs = loadOpenApiFromYaml();
         log.info('OpenAPI specification generated successfully');
         return specs;
     } catch (error) {
@@ -616,7 +455,19 @@ export function validateOpenApiSpec(): boolean {
             throw new Error('Unsupported OpenAPI version');
         }
 
-        log.info('OpenAPI specification validation passed');
+        // Validate paths exist
+        const pathCount = Object.keys(spec.paths).length;
+        if (pathCount === 0) {
+            throw new Error('No API paths defined');
+        }
+
+        log.info('OpenAPI specification validation passed', {
+            version: spec.openapi,
+            title: spec.info.title,
+            pathCount,
+            hasComponents: !!spec.components,
+            hasSchemas: !!(spec.components && spec.components.schemas)
+        });
         return true;
 
     } catch (error) {

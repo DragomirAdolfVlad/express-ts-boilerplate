@@ -1,0 +1,88 @@
+# Authentication endpoints
+
+/auth/login:
+  post:
+    tags:
+      - Authentication
+    summary: User login
+    description: Authenticate user with email and password
+    operationId: login
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../base.yaml#/components/schemas/LoginRequest'
+          examples:
+            basicLogin:
+              summary: Basic login example
+              value:
+                email: user@example.com
+                password: password123
+    responses:
+      '200':
+        description: Login successful
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../base.yaml#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '../base.yaml#/components/schemas/LoginResponse'
+      '400':
+        $ref: '../base.yaml#/components/responses/ValidationError'
+      '401':
+        $ref: '../base.yaml#/components/responses/UnauthorizedError'
+      '429':
+        $ref: '../base.yaml#/components/responses/RateLimitError'
+
+/auth/refresh:
+  post:
+    tags:
+      - Authentication
+    summary: Refresh access token
+    description: Get a new access token using refresh token
+    operationId: refreshToken
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../base.yaml#/components/schemas/RefreshTokenRequest'
+    responses:
+      '200':
+        description: Token refreshed successfully
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../base.yaml#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '../base.yaml#/components/schemas/LoginResponse'
+      '400':
+        $ref: '../base.yaml#/components/responses/ValidationError'
+      '401':
+        $ref: '../base.yaml#/components/responses/UnauthorizedError'
+
+/auth/logout:
+  post:
+    tags:
+      - Authentication
+    summary: User logout
+    description: Invalidate current session
+    operationId: logout
+    security:
+      - bearerAuth: []
+    responses:
+      '200':
+        description: Logout successful
+        content:
+          application/json:
+            schema:
+              $ref: '../base.yaml#/components/schemas/ApiResponse'
+      '401':
+        $ref: '../base.yaml#/components/responses/UnauthorizedError'

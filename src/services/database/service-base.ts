@@ -2,8 +2,8 @@
  * Base service class with common functionality
  */
 
-import { log, LogContext } from '../utils/logger';
-import { InternalServerError, DatabaseError } from '../utils/errors';
+import { log, LogContext } from '../../utils/logger';
+import { InternalServerError, DatabaseError } from '../../utils/errors';
 import { Prisma } from '@prisma/client';
 
 /**

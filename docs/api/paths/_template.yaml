@@ -1,0 +1,195 @@
+# Template for new API endpoints
+# Copy this file and rename it to match your resource (e.g., products.yaml, orders.yaml)
+# Then run: npm run docs:build
+
+# Replace 'resource' with your actual resource name (e.g., products, orders, etc.)
+/resource:
+  get:
+    tags:
+      - ResourceName  # Replace with your resource name (e.g., Products, Orders)
+    summary: List resources
+    description: Retrieve a list of resources with optional filtering and pagination
+    operationId: getResources  # Replace 'Resources' with your resource name
+    security:
+      - bearerAuth: []
+      - apiKeyAuth: []
+    parameters:
+      - $ref: '../base.yaml#/components/parameters/PageParam'
+      - $ref: '../base.yaml#/components/parameters/LimitParam'
+      - $ref: '../base.yaml#/components/parameters/SortByParam'
+      - $ref: '../base.yaml#/components/parameters/SortOrderParam'
+      # Add resource-specific query parameters here
+    responses:
+      '200':
+        description: Resources retrieved successfully
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../base.yaml#/components/schemas/PaginatedResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        $ref: '../base.yaml#/components/schemas/Resource'  # Define this schema in base.yaml
+      '400':
+        $ref: '../base.yaml#/components/responses/ValidationError'
+      '401':
+        $ref: '../base.yaml#/components/responses/UnauthorizedError'
+      '403':
+        $ref: '../base.yaml#/components/responses/ForbiddenError'
+      '429':
+        $ref: '../base.yaml#/components/responses/RateLimitError'
+
+  post:
+    tags:
+      - ResourceName
+    summary: Create a new resource
+    description: Create a new resource with the provided data
+    operationId: createResource
+    security:
+      - bearerAuth: []
+      - apiKeyAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../base.yaml#/components/schemas/CreateResourceRequest'  # Define this schema in base.yaml
+    responses:
+      '201':
+        description: Resource created successfully
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../base.yaml#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '../base.yaml#/components/schemas/Resource'
+      '400':
+        $ref: '../base.yaml#/components/responses/ValidationError'
+      '401':
+        $ref: '../base.yaml#/components/responses/UnauthorizedError'
+      '403':
+        $ref: '../base.yaml#/components/responses/ForbiddenError'
+      '409':
+        $ref: '../base.yaml#/components/responses/ConflictError'
+      '429':
+        $ref: '../base.yaml#/components/responses/RateLimitError'
+
+/resource/{id}:
+  get:
+    tags:
+      - ResourceName
+    summary: Get resource by ID
+    description: Retrieve a specific resource by its ID
+    operationId: getResourceById
+    security:
+      - bearerAuth: []
+      - apiKeyAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Resource ID
+        schema:
+          type: string
+          example: "resource_123"
+    responses:
+      '200':
+        description: Resource retrieved successfully
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../base.yaml#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '../base.yaml#/components/schemas/Resource'
+      '401':
+        $ref: '../base.yaml#/components/responses/UnauthorizedError'
+      '403':
+        $ref: '../base.yaml#/components/responses/ForbiddenError'
+      '404':
+        $ref: '../base.yaml#/components/responses/NotFoundError'
+
+  put:
+    tags:
+      - ResourceName
+    summary: Update resource by ID
+    description: Update a specific resource by its ID
+    operationId: updateResourceById
+    security:
+      - bearerAuth: []
+      - apiKeyAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Resource ID
+        schema:
+          type: string
+          example: "resource_123"
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../base.yaml#/components/schemas/UpdateResourceRequest'  # Define this schema in base.yaml
+    responses:
+      '200':
+        description: Resource updated successfully
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../base.yaml#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '../base.yaml#/components/schemas/Resource'
+      '400':
+        $ref: '../base.yaml#/components/responses/ValidationError'
+      '401':
+        $ref: '../base.yaml#/components/responses/UnauthorizedError'
+      '403':
+        $ref: '../base.yaml#/components/responses/ForbiddenError'
+      '404':
+        $ref: '../base.yaml#/components/responses/NotFoundError'
+      '409':
+        $ref: '../base.yaml#/components/responses/ConflictError'
+      '429':
+        $ref: '../base.yaml#/components/responses/RateLimitError'
+
+  delete:
+    tags:
+      - ResourceName
+    summary: Delete resource by ID
+    description: Delete a specific resource by its ID
+    operationId: deleteResourceById
+    security:
+      - bearerAuth: []
+      - apiKeyAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Resource ID
+        schema:
+          type: string
+          example: "resource_123"
+    responses:
+      '204':
+        description: Resource deleted successfully
+      '401':
+        $ref: '../base.yaml#/components/responses/UnauthorizedError'
+      '403':
+        $ref: '../base.yaml#/components/responses/ForbiddenError'
+      '404':
+        $ref: '../base.yaml#/components/responses/NotFoundError'
+      '429':
+        $ref: '../base.yaml#/components/responses/RateLimitError'

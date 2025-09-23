@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import { getConfig } from '../config';
+import { getConfig } from '../../config';
 
 /**
  * Database service with Prisma client singleton

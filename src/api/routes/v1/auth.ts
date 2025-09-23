@@ -31,155 +31,39 @@ const authController = new AuthController();
 //     message: 'Too many API key creation attempts'
 // });
 
-/**
- * @swagger
- * /api/v1/auth/login:
- *   post:
- *     summary: User login
- *     tags: [Authentication]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             $ref: '#/components/schemas/LoginRequest'
- *     responses:
- *       200:
- *         description: Login successful
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/LoginResponse'
- *       400:
- *         description: Validation error
- *       401:
- *         description: Invalid credentials
- *       429:
- *         description: Too many login attempts
- */
+// POST /auth/login - User login
 router.post('/login',
     // loginRateLimit, // DISABLED for development
     validateBody(commonSchemas.login),
     authController.login
 );
 
-/**
- * @swagger
- * /api/v1/auth/refresh:
- *   post:
- *     summary: Refresh access token
- *     tags: [Authentication]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             $ref: '#/components/schemas/RefreshTokenRequest'
- *     responses:
- *       200:
- *         description: Token refreshed successfully
- *       400:
- *         description: Validation error
- *       401:
- *         description: Invalid refresh token
- */
+// POST /auth/refresh - Refresh access token
 router.post('/refresh',
     // strictRateLimit, // DISABLED for development
     validateBody(commonSchemas.refreshToken),
     authController.refreshToken
 );
 
-/**
- * @swagger
- * /api/v1/auth/logout:
- *   post:
- *     summary: User logout
- *     tags: [Authentication]
- *     security:
- *       - bearerAuth: []
- *       - apiKeyAuth: []
- *     responses:
- *       200:
- *         description: Logout successful
- *       401:
- *         description: Authentication required
- */
+// POST /auth/logout - User logout
 router.post('/logout',
     authenticate,
     authController.logout
 );
 
-/**
- * @swagger
- * /api/v1/auth/me:
- *   get:
- *     summary: Get current authentication info
- *     tags: [Authentication]
- *     security:
- *       - bearerAuth: []
- *       - apiKeyAuth: []
- *     responses:
- *       200:
- *         description: Current authentication info
- *       401:
- *         description: Authentication required
- */
+// GET /auth/me - Get current authentication info
 router.get('/me',
     authenticate,
     authController.getCurrentUser
 );
 
-/**
- * @swagger
- * /api/v1/auth/verify:
- *   post:
- *     summary: Verify token (for debugging)
- *     tags: [Authentication]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               token:
- *                 type: string
- *               type:
- *                 type: string
- *                 enum: [access, refresh]
- *                 default: access
- *     responses:
- *       200:
- *         description: Token verification result
- */
+// POST /auth/verify - Verify token (for debugging)
 router.post('/verify',
     // strictRateLimit, // DISABLED for development
     authController.verifyToken
 );
 
-/**
- * @swagger
- * /api/v1/auth/api-keys:
- *   post:
- *     summary: Create API key
- *     tags: [Authentication]
- *     security:
- *       - bearerAuth: []
- *       - apiKeyAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             $ref: '#/components/schemas/CreateApiKeyRequest'
- *     responses:
- *       201:
- *         description: API key created successfully
- *       400:
- *         description: Validation error
- *       401:
- *         description: Authentication required
- */
+// POST /auth/api-keys - Create API key
 router.post('/api-keys',
     // apiKeyCreateRateLimit, // DISABLED for development
     authenticate,
@@ -187,29 +71,7 @@ router.post('/api-keys',
     authController.createApiKey
 );
 
-/**
- * @swagger
- * /api/v1/auth/api-keys/{keyId}:
- *   delete:
- *     summary: Revoke API key
- *     tags: [Authentication]
- *     security:
- *       - bearerAuth: []
- *       - apiKeyAuth: []
- *     parameters:
- *       - in: path
- *         name: keyId
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: API key revoked successfully
- *       401:
- *         description: Authentication required
- *       404:
- *         description: API key not found
- */
+// DELETE /auth/api-keys/:keyId - Revoke API key
 router.delete('/api-keys/:keyId',
     // strictRateLimit, // DISABLED for development
     authenticate,

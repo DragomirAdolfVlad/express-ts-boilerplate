@@ -5,15 +5,16 @@
 import { PrismaClient, User, UserRole, Prisma } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { getPrismaClient } from './database';
-import { cacheService } from './cache';
-import { log, LogContext } from '../utils/logger';
-import { 
-    ValidationError, 
-    NotFoundError, 
-    ConflictError, 
+import { cacheService } from '../redis/cache';
+import { log, LogContext } from '../../utils/logger';
+import {
+    ValidationError,
+    NotFoundError,
+    ConflictError,
     DatabaseError,
-    InternalServerError 
-} from '../utils/errors';
+    InternalServerError
+} from '../../utils/errors';
+import { HealthCheckableService, ServiceHealthCheck } from './service-base';
 
 /**
  * User service interfaces
@@ -64,8 +65,6 @@ export interface PaginatedResult<T> {
     };
 }
 
-import { HealthCheckableService, ServiceHealthCheck } from './service-base';
-
 /**
  * User service implementation
  */
@@ -84,7 +83,7 @@ export class UserService extends HealthCheckableService {
      */
     async createUser(data: CreateUserData, context?: LogContext): Promise<User> {
         const logger = log.child(context || {});
-        
+
         try {
             logger.info('Creating new user', { email: data.email, username: data.username });
 
@@ -108,8 +107,8 @@ export class UserService extends HealthCheckableService {
             // Cache the user
             await this.cacheUser(user);
 
-            logger.info('User created successfully', { 
-                userId: user.id, 
+            logger.info('User created successfully', {
+                userId: user.id,
                 email: user.email
             });
 
@@ -117,7 +116,7 @@ export class UserService extends HealthCheckableService {
 
         } catch (error) {
             logger.error('Failed to create user', error instanceof Error ? error : new Error(String(error)));
-            
+
             if (error instanceof Prisma.PrismaClientKnownRequestError) {
                 if (error.code === 'P2002') {
                     const field = (error.meta?.['target'] as string[])?.join(', ') || 'field';
@@ -139,14 +138,14 @@ export class UserService extends HealthCheckableService {
      */
     async getUserById(id: string, context?: LogContext): Promise<User | null> {
         const logger = log.child(context || {});
-        
+
         try {
             logger.debug('Getting user by ID', { userId: id });
 
             // Try cache first
             const cacheKey = `${this.CACHE_PREFIX}id:${id}`;
             const cachedUser = await cacheService.get<User>(cacheKey);
-            
+
             if (cachedUser) {
                 logger.debug('User found in cache', { userId: id });
                 return cachedUser;
@@ -188,14 +187,14 @@ export class UserService extends HealthCheckableService {
      */
     async getUserByEmail(email: string, context?: LogContext): Promise<User | null> {
         const logger = log.child(context || {});
-        
+
         try {
             logger.debug('Getting user by email', { email });
 
             // Try cache first
             const cacheKey = `${this.CACHE_PREFIX}email:${email}`;
             const cachedUser = await cacheService.get<User>(cacheKey);
-            
+
             if (cachedUser) {
                 logger.debug('User found in cache', { email });
                 return cachedUser;
@@ -226,7 +225,7 @@ export class UserService extends HealthCheckableService {
      */
     async getUserByUsername(username: string, context?: LogContext): Promise<User | null> {
         const logger = log.child(context || {});
-        
+
         try {
             logger.debug('Getting user by username', { username });
 
@@ -254,7 +253,7 @@ export class UserService extends HealthCheckableService {
      */
     async updateUser(id: string, data: UpdateUserData, context?: LogContext): Promise<User> {
         const logger = log.child(context || {});
-        
+
         try {
             logger.info('Updating user', { userId: id, fields: Object.keys(data) });
 
@@ -285,7 +284,7 @@ export class UserService extends HealthCheckableService {
             await this.cacheUser(user);
             await this.invalidateUserCache(id, existingUser.email, existingUser.username);
 
-            logger.info('User updated successfully', { 
+            logger.info('User updated successfully', {
                 userId: user.id,
                 updatedFields: Object.keys(data)
             });
@@ -294,7 +293,7 @@ export class UserService extends HealthCheckableService {
 
         } catch (error) {
             logger.error('Failed to update user', error instanceof Error ? error : new Error(String(error)));
-            
+
             if (error instanceof NotFoundError || error instanceof ValidationError) {
                 throw error;
             }
@@ -316,7 +315,7 @@ export class UserService extends HealthCheckableService {
      */
     async deleteUser(id: string, context?: LogContext): Promise<void> {
         const logger = log.child(context || {});
-        
+
         try {
             logger.info('Deleting user', { userId: id });
 
@@ -338,7 +337,7 @@ export class UserService extends HealthCheckableService {
 
         } catch (error) {
             logger.error('Failed to delete user', error instanceof Error ? error : new Error(String(error)));
-            
+
             if (error instanceof NotFoundError) {
                 throw error;
             }
@@ -351,12 +350,12 @@ export class UserService extends HealthCheckableService {
      * Get users with pagination and filtering
      */
     async getUsers(
-        filter: UserFilter = {}, 
+        filter: UserFilter = {},
         pagination: PaginationOptions,
         context?: LogContext
     ): Promise<PaginatedResult<User>> {
         const logger = log.child(context || {});
-        
+
         try {
             logger.debug('Getting users with pagination', { filter, pagination });
 
@@ -365,13 +364,13 @@ export class UserService extends HealthCheckableService {
 
             // Build where clause
             const where: Prisma.UserWhereInput = {};
-            
+
             if (filter.email) where.email = { contains: filter.email, mode: 'insensitive' };
             if (filter.username) where.username = { contains: filter.username, mode: 'insensitive' };
             // Role filtering would need to be implemented via userRoles relation
             // if (filter.role) where.userRoles = { some: { role: filter.role } };
             if (filter.isActive !== undefined) where.isActive = filter.isActive;
-            
+
             if (filter.search) {
                 where.OR = [
                     { email: { contains: filter.search, mode: 'insensitive' } },
@@ -404,11 +403,11 @@ export class UserService extends HealthCheckableService {
 
             const totalPages = Math.ceil(total / limit);
 
-            logger.debug('Users retrieved', { 
-                count: users.length, 
-                total, 
-                page, 
-                totalPages 
+            logger.debug('Users retrieved', {
+                count: users.length,
+                total,
+                page,
+                totalPages
             });
 
             return {
@@ -434,17 +433,17 @@ export class UserService extends HealthCheckableService {
      */
     async verifyPassword(user: User, password: string, context?: LogContext): Promise<boolean> {
         const logger = log.child(context || {});
-        
+
         try {
             logger.debug('Verifying user password', { userId: user.id });
-            
+
             const isValid = await bcrypt.compare(password, user.password);
-            
-            logger.debug('Password verification result', { 
-                userId: user.id, 
-                isValid 
+
+            logger.debug('Password verification result', {
+                userId: user.id,
+                isValid
             });
-            
+
             return isValid;
 
         } catch (error) {
@@ -532,13 +531,13 @@ export class UserService extends HealthCheckableService {
      */
     async performHealthCheck(_context?: LogContext): Promise<ServiceHealthCheck> {
         const startTime = Date.now();
-        
+
         try {
             // Test database connection by counting users
             await this.prisma.user.count();
-            
+
             const latency = Date.now() - startTime;
-            
+
             return {
                 name: 'UserService',
                 status: 'healthy',
@@ -551,7 +550,7 @@ export class UserService extends HealthCheckableService {
 
         } catch (error) {
             const latency = Date.now() - startTime;
-            
+
             return {
                 name: 'UserService',
                 status: 'unhealthy',

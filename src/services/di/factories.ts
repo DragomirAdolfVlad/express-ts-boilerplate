@@ -3,11 +3,12 @@
  */
 
 import { BaseServiceFactory, getService } from './container';
-import { UserService } from './user-service';
-import { AuthService } from './auth-service';
-import { CacheService, enhancedCacheService } from './cache-service';
-import { getPrismaClient } from './database';
-import { log } from '../utils/logger';
+import { UserService } from '../database/user-service';
+import { AuthService } from '../database/auth-service';
+import { TokenTradeService } from '../database/token-trade-service';
+import { CacheService, enhancedCacheService } from '../redis/cache-service';
+import { getPrismaClient } from '../database/database';
+import { log } from '../../utils/logger';
 
 /**
  * User service factory

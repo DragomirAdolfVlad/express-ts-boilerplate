@@ -1,179 +1,102 @@
 # API Documentation
 
-This directory contains the OpenAPI/Swagger documentation for the Express TypeScript Boilerplate API.
+This directory contains the OpenAPI specification for the Express TypeScript Boilerplate API.
 
 ## Structure
 
-The documentation follows a clean architecture pattern with modular YAML files:
-
 ```
 docs/
-├── README.md                          # This file
-└── api/
-    └── v1/                            # API version 1
-        ├── openapi.yaml               # Main OpenAPI specification
-        ├── paths/                     # Endpoint definitions
-        │   ├── auth.yaml              # Authentication endpoints
-        │   ├── users.yaml             # User management endpoints
-        │   └── health.yaml            # Health and monitoring endpoints
-        └── components/                # Reusable components
-            ├── schemas/               # Data models
-            │   ├── index.yaml         # Schema index
-            │   ├── common.yaml        # Common schemas
-            │   ├── auth.yaml          # Authentication schemas
-            │   ├── users.yaml         # User schemas
-            │   └── health.yaml        # Health schemas
-            ├── responses/             # Response definitions
-            │   ├── index.yaml         # Response index
-            │   └── common.yaml        # Common responses
-            ├── parameters/            # Parameter definitions
-            │   ├── index.yaml         # Parameter index
-            │   └── common.yaml        # Common parameters
-            └── examples/              # Request/response examples
-                ├── index.yaml         # Example index
-                ├── auth.yaml          # Authentication examples
-                ├── users.yaml         # User examples
-                └── health.yaml        # Health examples
+├── openapi.yaml          # Generated complete OpenAPI specification
+├── api/
+│   ├── base.yaml         # Base specification with components and schemas
+│   └── paths/
+│       ├── auth.yaml     # Authentication endpoints
+│       ├── users.yaml    # User management endpoints
+│       ├── health.yaml   # Health check endpoints
+│       └── _template.yaml # Template for new endpoints
+└── README.md
 ```
 
 ## Features
 
-### 🏗️ **Clean Architecture**
-- **Modular Structure**: Each resource has its own file
-- **Reusable Components**: Shared schemas, responses, and parameters
-- **Version Separation**: Clear versioning structure for API evolution
-- **Organized Examples**: Comprehensive request/response examples
+- **Modular Structure**: Organized by resource with separate files for each endpoint group
+- **Automatic Building**: Build script combines modular files into single OpenAPI spec
+- **Complete Coverage**: All endpoints, request/response schemas, and error responses documented
+- **Interactive Testing**: Full Swagger UI support with working examples
+- **Industry Standard**: Follows OpenAPI 3.0.3 specification best practices
+- **Decoupled from Code**: Documentation is separate from route files to avoid bloating
 
-### 📚 **Comprehensive Documentation**
-- **All Endpoints**: Complete coverage of all API endpoints
-- **Authentication**: JWT and API key authentication examples
-- **Error Handling**: Detailed error response documentation
-- **Rate Limiting**: Rate limit information and headers
-- **Security**: Security schemes and requirements
+## Usage
 
-### 🎯 **Developer Experience**
-- **Interactive UI**: Swagger UI for testing endpoints
-- **Try It Out**: Built-in request testing functionality
-- **Examples**: Real-world request/response examples
-- **Validation**: Input validation documentation
+The API documentation is automatically served at:
+- `/api-docs` - Interactive Swagger UI
+- `/docs` - Alternative Swagger UI endpoint
+- `/api-docs.json` - OpenAPI specification in JSON format
+- `/openapi.yaml` - OpenAPI specification in YAML format
 
-## Accessing Documentation
+## Adding New Endpoints
 
-### Development
-- **Swagger UI**: http://localhost:3000/api-docs
-- **Alternative UI**: http://localhost:3000/docs
-- **OpenAPI JSON**: http://localhost:3000/api-docs.json
-- **OpenAPI YAML**: http://localhost:3000/openapi.yaml
+### Quick Start
+1. **Copy the template**: `cp docs/api/paths/_template.yaml docs/api/paths/your-resource.yaml`
+2. **Edit the file**: Replace placeholders with your actual resource details
+3. **Add schemas**: Add any new schemas to `docs/api/base.yaml` under `components.schemas`
+4. **Build docs**: Run `npm run docs:build`
 
-### Production
-- **Swagger UI**: https://api.example.com/api-docs
-- **OpenAPI JSON**: https://api.example.com/api-docs.json
+### Example: Adding Products API
 
-## Authentication in Documentation
+1. Create `docs/api/paths/products.yaml`:
+```yaml
+/products:
+  get:
+    tags:
+      - Products
+    summary: List products
+    # ... rest of the endpoint definition
+```
 
-The documentation includes examples for both authentication methods:
+2. Add schemas to `docs/api/base.yaml`:
+```yaml
+components:
+  schemas:
+    Product:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "prod_123"
+        name:
+          type: string
+          example: "Sample Product"
+        # ... other properties
+```
 
-### JWT Authentication
+3. Build the documentation:
 ```bash
-# Login to get token
-curl -X POST /api/v1/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email": "user@example.com", "password": "password123"}'
-
-# Use token in requests
-curl -X GET /api/v1/users/me \
-  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+npm run docs:build
 ```
 
-### API Key Authentication
-```bash
-# Use API key in requests
-curl -X GET /api/v1/users \
-  -H "X-API-Key: ak_1234567890_user.9f4fc77dfd0664034f30b64e6720c53b..."
-```
+## Available Scripts
 
-## Rate Limiting
+- `npm run docs:build` - Build the complete OpenAPI specification
+- `npm run docs:watch` - Watch for changes and rebuild automatically
+- `npm run docs:dev` - Build once and then watch for changes
 
-All endpoints include rate limiting information:
+## Development Workflow
 
-- **Headers**: Rate limit headers in responses
-- **Limits**: Different limits per endpoint type
-- **Authentication-Aware**: Different limits for authenticated users
-- **Custom Limits**: API keys can have custom rate limits
+1. **During development**: Run `npm run docs:dev` to automatically rebuild docs when files change
+2. **Before committing**: Run `npm run docs:build` to ensure the final spec is up to date
+3. **Adding new routes**: Use the template and follow the modular structure
 
-## Error Handling
+## Best Practices
 
-Comprehensive error documentation includes:
+- **One file per resource**: Keep related endpoints together (e.g., all user endpoints in `users.yaml`)
+- **Reuse components**: Define common schemas, responses, and parameters in `base.yaml`
+- **Use the template**: Start with `_template.yaml` for consistency
+- **Build before testing**: Always run `npm run docs:build` after making changes
+- **Keep routes clean**: No inline documentation in route files - everything goes in the YAML files
 
-- **Standard Format**: Consistent error response structure
-- **HTTP Status Codes**: Appropriate status codes for each error type
-- **Error Details**: Additional context for debugging
-- **Examples**: Real error response examples
+## File Organization
 
-## Validation
-
-Input validation is documented with:
-
-- **Schema Validation**: Joi schema requirements
-- **Field Constraints**: Min/max lengths, patterns, formats
-- **Required Fields**: Clear indication of required vs optional
-- **Examples**: Valid and invalid input examples
-
-## Updating Documentation
-
-### Adding New Endpoints
-
-1. **Create Path Definition**: Add to appropriate `paths/*.yaml` file
-2. **Define Schemas**: Add request/response schemas to `components/schemas/`
-3. **Add Examples**: Include realistic examples in `components/examples/`
-4. **Update Index**: Add references to index files
-
-### Adding New Versions
-
-1. **Create Version Directory**: `docs/api/v2/`
-2. **Copy Structure**: Use v1 as template
-3. **Update Main Spec**: Create new `openapi.yaml`
-4. **Configure Routes**: Add v2 routes to application
-
-### Best Practices
-
-- **Consistent Naming**: Use consistent naming conventions
-- **Detailed Descriptions**: Provide clear, helpful descriptions
-- **Realistic Examples**: Use realistic data in examples
-- **Error Coverage**: Document all possible error responses
-- **Security**: Include security requirements and examples
-
-## Tools and Validation
-
-### Swagger Editor
-Use [Swagger Editor](https://editor.swagger.io/) to validate and edit YAML files.
-
-### OpenAPI Validation
-The application includes built-in validation:
-```typescript
-import { validateOpenApiSpec } from '../config/swagger';
-const isValid = validateOpenApiSpec();
-```
-
-### YAML Linting
-Use YAML linters to ensure proper formatting:
-```bash
-yamllint docs/api/v1/**/*.yaml
-```
-
-## Contributing
-
-When adding new features:
-
-1. **Update Documentation First**: Document the API before implementation
-2. **Include Examples**: Add realistic request/response examples
-3. **Test Documentation**: Verify examples work in Swagger UI
-4. **Review Structure**: Ensure consistent with existing patterns
-
-## Support
-
-For documentation issues or questions:
-- Check existing examples in the documentation
-- Review the OpenAPI 3.0.3 specification
-- Test endpoints in Swagger UI
-- Validate YAML syntax
+- **`base.yaml`**: Contains all reusable components (schemas, responses, parameters, security)
+- **`paths/*.yaml`**: Individual files for each resource's endpoints
+- **`openapi.yaml`**: Generated file - don't edit directly, it gets overwritten

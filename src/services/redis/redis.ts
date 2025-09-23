@@ -1,5 +1,5 @@
 import Redis, { RedisOptions } from 'ioredis';
-import { getConfig } from '../config';
+import { getConfig } from '../../config';
 
 /**
  * Redis service with connection pooling and health checks

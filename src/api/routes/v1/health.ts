@@ -13,58 +13,13 @@ import {
 const router = Router();
 const healthController = new HealthController();
 
-/**
- * @swagger
- * /api/v1/health:
- *   get:
- *     summary: Basic health check
- *     tags: [Health]
- *     responses:
- *       200:
- *         description: Service is healthy
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 data:
- *                   type: object
- *                   properties:
- *                     status:
- *                       type: string
- *                     timestamp:
- *                       type: string
- *                     uptime:
- *                       type: number
- *                     version:
- *                       type: string
- *                     environment:
- *                       type: string
- *                     node:
- *                       type: string
- */
+// GET /health - Basic health check
 router.get('/',
     // lenientRateLimit, // DISABLED for development
     healthController.healthCheck
 );
 
-/**
- * @swagger
- * /api/v1/health/detailed:
- *   get:
- *     summary: Detailed health check with dependencies
- *     tags: [Health]
- *     security:
- *       - bearerAuth: []
- *       - apiKeyAuth: []
- *     responses:
- *       200:
- *         description: Detailed health status
- *       503:
- *         description: Service unhealthy
- */
+// GET /health/detailed - Detailed health check with dependencies
 router.get('/detailed',
     // lenientRateLimit, // DISABLED for development
     authenticate,
@@ -72,33 +27,13 @@ router.get('/detailed',
     healthController.detailedHealthCheck
 );
 
-/**
- * @swagger
- * /api/v1/health/ready:
- *   get:
- *     summary: Readiness probe for Kubernetes
- *     tags: [Health]
- *     responses:
- *       200:
- *         description: Service is ready
- *       503:
- *         description: Service is not ready
- */
+// GET /health/ready - Readiness probe for Kubernetes
 router.get('/ready',
     // lenientRateLimit, // DISABLED for development
     healthController.readinessCheck
 );
 
-/**
- * @swagger
- * /api/v1/health/live:
- *   get:
- *     summary: Liveness probe for Kubernetes
- *     tags: [Health]
- *     responses:
- *       200:
- *         description: Service is alive
- */
+// GET /health/live - Liveness probe for Kubernetes
 router.get('/live',
     // lenientRateLimit, // DISABLED for development
     healthController.livenessCheck

@@ -13,10 +13,10 @@
       - bearerAuth: []
       - apiKeyAuth: []
     parameters:
-      - $ref: '../components/parameters/common.yaml#/PageParam'
-      - $ref: '../components/parameters/common.yaml#/LimitParam'
-      - $ref: '../components/parameters/common.yaml#/SortByParam'
-      - $ref: '../components/parameters/common.yaml#/SortOrderParam'
+      - $ref: '../base.yaml#/components/parameters/PageParam'
+      - $ref: '../base.yaml#/components/parameters/LimitParam'
+      - $ref: '../base.yaml#/components/parameters/SortByParam'
+      - $ref: '../base.yaml#/components/parameters/SortOrderParam'
       - name: search
         in: query
         description: Search term to filter users by name or email
@@ -31,19 +31,6 @@
         schema:
           type: boolean
           example: true
-      - name: email
-        in: query
-        description: Filter users by email (partial match)
-        schema:
-          type: string
-          format: email
-          example: "john@example.com"
-      - name: username
-        in: query
-        description: Filter users by username (partial match)
-        schema:
-          type: string
-          example: "john"
     responses:
       '200':
         description: Users retrieved successfully
@@ -51,24 +38,21 @@
           application/json:
             schema:
               allOf:
-                - $ref: '../components/schemas/common.yaml#/PaginatedResponse'
+                - $ref: '../base.yaml#/components/schemas/PaginatedResponse'
                 - type: object
                   properties:
                     data:
                       type: array
                       items:
-                        $ref: '../components/schemas/users.yaml#/User'
-            examples:
-              usersList:
-                $ref: '../components/examples/users.yaml#/usersList'
+                        $ref: '../base.yaml#/components/schemas/User'
       '400':
-        $ref: '../components/responses/common.yaml#/ValidationError'
+        $ref: '../base.yaml#/components/responses/ValidationError'
       '401':
-        $ref: '../components/responses/common.yaml#/UnauthorizedError'
+        $ref: '../base.yaml#/components/responses/UnauthorizedError'
       '403':
-        $ref: '../components/responses/common.yaml#/ForbiddenError'
+        $ref: '../base.yaml#/components/responses/ForbiddenError'
       '429':
-        $ref: '../components/responses/common.yaml#/RateLimitError'
+        $ref: '../base.yaml#/components/responses/RateLimitError'
 
   post:
     tags:
@@ -86,12 +70,7 @@
       content:
         application/json:
           schema:
-            $ref: '../components/schemas/users.yaml#/CreateUserRequest'
-          examples:
-            basicUser:
-              $ref: '../components/examples/users.yaml#/basicUser'
-            fullUser:
-              $ref: '../components/examples/users.yaml#/fullUser'
+            $ref: '../base.yaml#/components/schemas/CreateUserRequest'
     responses:
       '201':
         description: User created successfully
@@ -99,24 +78,21 @@
           application/json:
             schema:
               allOf:
-                - $ref: '../components/schemas/common.yaml#/ApiResponse'
+                - $ref: '../base.yaml#/components/schemas/ApiResponse'
                 - type: object
                   properties:
                     data:
-                      $ref: '../components/schemas/users.yaml#/User'
-            examples:
-              userCreated:
-                $ref: '../components/examples/users.yaml#/userCreated'
+                      $ref: '../base.yaml#/components/schemas/User'
       '400':
-        $ref: '../components/responses/common.yaml#/ValidationError'
+        $ref: '../base.yaml#/components/responses/ValidationError'
       '401':
-        $ref: '../components/responses/common.yaml#/UnauthorizedError'
+        $ref: '../base.yaml#/components/responses/UnauthorizedError'
       '403':
-        $ref: '../components/responses/common.yaml#/ForbiddenError'
+        $ref: '../base.yaml#/components/responses/ForbiddenError'
       '409':
-        $ref: '../components/responses/common.yaml#/ConflictError'
+        $ref: '../base.yaml#/components/responses/ConflictError'
       '429':
-        $ref: '../components/responses/common.yaml#/RateLimitError'
+        $ref: '../base.yaml#/components/responses/RateLimitError'
 
 /users/me:
   get:
@@ -137,16 +113,13 @@
           application/json:
             schema:
               allOf:
-                - $ref: '../components/schemas/common.yaml#/ApiResponse'
+                - $ref: '../base.yaml#/components/schemas/ApiResponse'
                 - type: object
                   properties:
                     data:
-                      $ref: '../components/schemas/users.yaml#/User'
-            examples:
-              currentUser:
-                $ref: '../components/examples/users.yaml#/currentUser'
+                      $ref: '../base.yaml#/components/schemas/User'
       '401':
-        $ref: '../components/responses/common.yaml#/UnauthorizedError'
+        $ref: '../base.yaml#/components/responses/UnauthorizedError'
 
   put:
     tags:
@@ -164,10 +137,7 @@
       content:
         application/json:
           schema:
-            $ref: '../components/schemas/users.yaml#/UpdateUserRequest'
-          examples:
-            updateProfile:
-              $ref: '../components/examples/users.yaml#/updateProfile'
+            $ref: '../base.yaml#/components/schemas/UpdateUserRequest'
     responses:
       '200':
         description: Profile updated successfully
@@ -175,22 +145,19 @@
           application/json:
             schema:
               allOf:
-                - $ref: '../components/schemas/common.yaml#/ApiResponse'
+                - $ref: '../base.yaml#/components/schemas/ApiResponse'
                 - type: object
                   properties:
                     data:
-                      $ref: '../components/schemas/users.yaml#/User'
-            examples:
-              profileUpdated:
-                $ref: '../components/examples/users.yaml#/profileUpdated'
+                      $ref: '../base.yaml#/components/schemas/User'
       '400':
-        $ref: '../components/responses/common.yaml#/ValidationError'
+        $ref: '../base.yaml#/components/responses/ValidationError'
       '401':
-        $ref: '../components/responses/common.yaml#/UnauthorizedError'
+        $ref: '../base.yaml#/components/responses/UnauthorizedError'
       '409':
-        $ref: '../components/responses/common.yaml#/ConflictError'
+        $ref: '../base.yaml#/components/responses/ConflictError'
       '429':
-        $ref: '../components/responses/common.yaml#/RateLimitError'
+        $ref: '../base.yaml#/components/responses/RateLimitError'
 
 /users/{id}:
   get:
@@ -220,20 +187,17 @@
           application/json:
             schema:
               allOf:
-                - $ref: '../components/schemas/common.yaml#/ApiResponse'
+                - $ref: '../base.yaml#/components/schemas/ApiResponse'
                 - type: object
                   properties:
                     data:
-                      $ref: '../components/schemas/users.yaml#/User'
-            examples:
-              userById:
-                $ref: '../components/examples/users.yaml#/userById'
+                      $ref: '../base.yaml#/components/schemas/User'
       '401':
-        $ref: '../components/responses/common.yaml#/UnauthorizedError'
+        $ref: '../base.yaml#/components/responses/UnauthorizedError'
       '403':
-        $ref: '../components/responses/common.yaml#/ForbiddenError'
+        $ref: '../base.yaml#/components/responses/ForbiddenError'
       '404':
-        $ref: '../components/responses/common.yaml#/NotFoundError'
+        $ref: '../base.yaml#/components/responses/NotFoundError'
 
   put:
     tags:
@@ -260,10 +224,7 @@
       content:
         application/json:
           schema:
-            $ref: '../components/schemas/users.yaml#/UpdateUserRequest'
-          examples:
-            updateUser:
-              $ref: '../components/examples/users.yaml#/updateUser'
+            $ref: '../base.yaml#/components/schemas/UpdateUserRequest'
     responses:
       '200':
         description: User updated successfully
@@ -271,26 +232,23 @@
           application/json:
             schema:
               allOf:
-                - $ref: '../components/schemas/common.yaml#/ApiResponse'
+                - $ref: '../base.yaml#/components/schemas/ApiResponse'
                 - type: object
                   properties:
                     data:
-                      $ref: '../components/schemas/users.yaml#/User'
-            examples:
-              userUpdated:
-                $ref: '../components/examples/users.yaml#/userUpdated'
+                      $ref: '../base.yaml#/components/schemas/User'
       '400':
-        $ref: '../components/responses/common.yaml#/ValidationError'
+        $ref: '../base.yaml#/components/responses/ValidationError'
       '401':
-        $ref: '../components/responses/common.yaml#/UnauthorizedError'
+        $ref: '../base.yaml#/components/responses/UnauthorizedError'
       '403':
-        $ref: '../components/responses/common.yaml#/ForbiddenError'
+        $ref: '../base.yaml#/components/responses/ForbiddenError'
       '404':
-        $ref: '../components/responses/common.yaml#/NotFoundError'
+        $ref: '../base.yaml#/components/responses/NotFoundError'
       '409':
-        $ref: '../components/responses/common.yaml#/ConflictError'
+        $ref: '../base.yaml#/components/responses/ConflictError'
       '429':
-        $ref: '../components/responses/common.yaml#/RateLimitError'
+        $ref: '../base.yaml#/components/responses/RateLimitError'
 
   delete:
     tags:
@@ -316,10 +274,10 @@
       '204':
         description: User deleted successfully
       '401':
-        $ref: '../components/responses/common.yaml#/UnauthorizedError'
+        $ref: '../base.yaml#/components/responses/UnauthorizedError'
       '403':
-        $ref: '../components/responses/common.yaml#/ForbiddenError'
+        $ref: '../base.yaml#/components/responses/ForbiddenError'
       '404':
-        $ref: '../components/responses/common.yaml#/NotFoundError'
+        $ref: '../base.yaml#/components/responses/NotFoundError'
       '429':
-        $ref: '../components/responses/common.yaml#/RateLimitError'
+        $ref: '../base.yaml#/components/responses/RateLimitError'

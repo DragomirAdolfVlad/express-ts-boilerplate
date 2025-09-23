@@ -4,8 +4,8 @@
 
 import { Request, Response } from 'express';
 import { BaseController } from './base-controller';
-import { getService } from '../../services/container';
-import { AuthService, LoginRequest, RefreshTokenRequest, ApiKeyRequest } from '../../services/auth-service';
+import { getService } from '../../services/di/container';
+import { AuthService, LoginRequest, RefreshTokenRequest, ApiKeyRequest } from '../../services/database/auth-service';
 import { AuthenticatedRequest } from '../../middleware/auth';
 import { UnauthorizedError } from '../../utils/errors';
 

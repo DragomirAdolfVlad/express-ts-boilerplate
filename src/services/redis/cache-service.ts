@@ -3,8 +3,8 @@
  */
 
 import { cacheService as baseCacheService, CacheOptions } from './cache';
-import { log, LogContext } from '../utils/logger';
-import { InternalServerError } from '../utils/errors';
+import { log, LogContext } from '../../utils/logger';
+import { InternalServerError } from '../../utils/errors';
 
 /**
  * Enhanced cache service with logging and error handling

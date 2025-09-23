@@ -1,5 +1,5 @@
 import { getRedisClient } from './redis';
-import { getConfig } from '../config';
+import { getConfig } from '../../config';
 
 /**
  * Cache service with TTL support and key patterns

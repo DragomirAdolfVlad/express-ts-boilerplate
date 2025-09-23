@@ -4,8 +4,8 @@
 
 import { Request, Response } from 'express';
 import { BaseController } from './base-controller';
-import { getService } from '../../services/container';
-import { UserService, CreateUserData, UpdateUserData, UserFilter } from '../../services/user-service';
+import { getService } from '../../services/di/container';
+import { UserService, CreateUserData, UpdateUserData, UserFilter } from '../../services/database/user-service';
 import { AuthenticatedRequest } from '../../middleware/auth';
 import { NotFoundError, ValidationError, ForbiddenError } from '../../utils/errors';
 

@@ -3,7 +3,7 @@
  */
 
 import { Response, NextFunction } from 'express';
-import { getRedisClient } from '../services/redis';
+import { getRedisClient } from '../services/redis/redis';
 import { AuthenticatedRequest } from './auth';
 import { log } from '../utils/logger';
 import { config } from '../config/loader';
