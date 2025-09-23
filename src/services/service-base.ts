@@ -30,13 +30,13 @@ export abstract class BaseService {
      * Handle database errors with proper error conversion
      */
     public handleDatabaseError(
-        error: unknown, 
-        operation: string, 
-        table: string, 
+        error: unknown,
+        operation: string,
+        table: string,
         context?: LogContext
     ): never {
         const logger = this.createLogger(context);
-        
+
         logger.error(`Database operation failed`, {
             operation,
             table,
@@ -112,7 +112,7 @@ export abstract class BaseService {
             const result = await operation();
 
             const duration = Date.now() - startTime;
-            logger.debug(`Completed ${operationName}`, { 
+            logger.debug(`Completed ${operationName}`, {
                 operation: operationName,
                 duration: `${duration}ms`
             });
@@ -135,7 +135,7 @@ export abstract class BaseService {
      * Validate required parameters
      */
     public validateRequired(params: Record<string, any>, requiredFields: string[]): void {
-        const missing = requiredFields.filter(field => 
+        const missing = requiredFields.filter(field =>
             params[field] === undefined || params[field] === null || params[field] === ''
         );
 
@@ -149,7 +149,7 @@ export abstract class BaseService {
      */
     public logMetrics(operation: string, metrics: Record<string, any>, context?: LogContext): void {
         const logger = this.createLogger(context);
-        
+
         logger.info(`Service metrics`, {
             operation,
             service: this.serviceName,
@@ -168,7 +168,7 @@ export abstract class BaseService {
         return {
             end: (additionalData?: Record<string, any>) => {
                 const duration = Date.now() - startTime;
-                
+
                 logger.debug(`Operation completed`, {
                     operation,
                     duration: `${duration}ms`,
@@ -216,18 +216,18 @@ export abstract class HealthCheckableService extends BaseService {
      */
     async getStatus(context?: LogContext): Promise<ServiceHealthCheck> {
         const logger = this.createLogger(context);
-        
+
         try {
             logger.debug('Performing health check', { service: this.serviceName });
-            
+
             const result = await this.performHealthCheck(context);
-            
-            logger.debug('Health check completed', { 
+
+            logger.debug('Health check completed', {
                 service: this.serviceName,
                 status: result.status,
                 latency: result.latency
             });
-            
+
             return result;
 
         } catch (error) {

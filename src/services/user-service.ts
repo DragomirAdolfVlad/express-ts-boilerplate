@@ -3,7 +3,7 @@
  */
 
 import { PrismaClient, User, UserRole, Prisma } from '@prisma/client';
-import bcrypt from 'bcrypt';
+import * as bcrypt from 'bcrypt';
 import { getPrismaClient } from './database';
 import { cacheService } from './cache';
 import { log, LogContext } from '../utils/logger';

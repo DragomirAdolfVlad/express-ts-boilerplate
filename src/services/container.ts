@@ -11,7 +11,7 @@ import { log } from '../utils/logger';
  * Service container interface
  */
 export interface ServiceContainer {
-    userService: UserService;
+    userService: any; // Will be properly typed when used
     cacheService: typeof cacheService;
     databaseService: ReturnType<typeof getPrismaClient>;
     redisService: ReturnType<typeof getRedisClient>;
@@ -108,7 +108,8 @@ class ServiceRegistry {
     getServiceNames(): string[] {
         const instanceNames = Array.from(this.services.keys());
         const factoryNames = Array.from(this.factories.keys());
-        return [...new Set([...instanceNames, ...factoryNames])];
+        const allNames = instanceNames.concat(factoryNames);
+        return Array.from(new Set(allNames));
     }
 
     /**
@@ -128,8 +129,8 @@ const serviceRegistry = new ServiceRegistry();
  * Service container implementation
  */
 class Container implements ServiceContainer {
-    get userService(): UserService {
-        return serviceRegistry.get<UserService>('userService');
+    get userService(): any {
+        return serviceRegistry.get<any>('userService');
     }
 
     get cacheService(): typeof cacheService {
@@ -220,5 +221,3 @@ export function clearServices(): void {
     serviceRegistry.clear();
 }
 
-// Import UserService type (will be defined next)
-import type { UserService } from './user-service';

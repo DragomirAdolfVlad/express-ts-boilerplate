@@ -1,4 +1,4 @@
-import dotenv from 'dotenv';
+import * as dotenv from 'dotenv';
 import { AppConfig } from './types';
 import { configSchema } from './schema';
 
