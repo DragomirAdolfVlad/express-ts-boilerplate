@@ -1,39 +1,20 @@
-import { getConfig, validateConfig } from './config';
-
 /**
- * Main application entry point
- * This is a placeholder that will be replaced with the actual Express app
+ * Application entry point
  */
-async function main(): Promise<void> {
-    console.log('🚀 Express TypeScript Boilerplate');
 
-    // Validate configuration at startup
-    validateConfig();
+import { startServer } from './app';
+import { validateConfig } from './config/loader';
+import { log } from './utils/logger';
 
-    // Get configuration
-    const config = getConfig();
+// Validate configuration on startup
+validateConfig();
 
-    console.log('📦 Project foundation setup complete');
-    console.log('🔧 Ready for development');
-    console.log(`🌐 Server will run on port ${config.server.port}`);
-    console.log(`🗄️  Database: ${config.database.url ? 'Connected' : 'Not configured'}`);
-    console.log(`📊 Environment: ${config.server.nodeEnv}`);
+// Start the server
+try {
+    startServer();
+} catch (error) {
+    log.error('Failed to start server', {
+        error: error instanceof Error ? error.message : String(error)
+    });
+    process.exit(1);
 }
-
-// Handle unhandled promise rejections
-process.on('unhandledRejection', (reason: unknown, promise: Promise<unknown>) => {
-    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-    process.exit(1);
-});
-
-// Handle uncaught exceptions
-process.on('uncaughtException', (error: Error) => {
-    console.error('Uncaught Exception:', error);
-    process.exit(1);
-});
-
-// Start the application
-main().catch((error: unknown) => {
-    console.error('Failed to start application:', error);
-    process.exit(1);
-});

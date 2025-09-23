@@ -1,0 +1,194 @@
+# Health check and monitoring endpoints
+
+/health:
+  get:
+    tags:
+      - Health
+    summary: Basic health check
+    description: |
+      Basic health check endpoint that returns the service status.
+      This endpoint is publicly accessible and doesn't require authentication.
+    operationId: healthCheck
+    responses:
+      '200':
+        description: Service is healthy
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '../components/schemas/health.yaml#/HealthStatus'
+            examples:
+              healthy:
+                $ref: '../components/examples/health.yaml#/basicHealth'
+
+/health/detailed:
+  get:
+    tags:
+      - Health
+    summary: Detailed health check with dependencies
+    description: |
+      Comprehensive health check that includes status of all dependencies
+      (database, Redis, external services). Requires admin privileges.
+    operationId: detailedHealthCheck
+    security:
+      - bearerAuth: []
+      - apiKeyAuth: []
+    responses:
+      '200':
+        description: Detailed health status
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '../components/schemas/health.yaml#/DetailedHealthStatus'
+            examples:
+              detailedHealthy:
+                $ref: '../components/examples/health.yaml#/detailedHealthy'
+      '401':
+        $ref: '../components/responses/common.yaml#/UnauthorizedError'
+      '403':
+        $ref: '../components/responses/common.yaml#/ForbiddenError'
+      '503':
+        description: Service unhealthy
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '../components/schemas/health.yaml#/DetailedHealthStatus'
+            examples:
+              detailedUnhealthy:
+                $ref: '../components/examples/health.yaml#/detailedUnhealthy'
+
+/health/ready:
+  get:
+    tags:
+      - Health
+    summary: Readiness probe for Kubernetes
+    description: |
+      Kubernetes readiness probe endpoint. Checks if the service is ready
+      to accept traffic by verifying critical dependencies.
+    operationId: readinessCheck
+    responses:
+      '200':
+        description: Service is ready
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '../components/schemas/health.yaml#/ReadinessStatus'
+            examples:
+              ready:
+                $ref: '../components/examples/health.yaml#/ready'
+      '503':
+        description: Service is not ready
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '../components/schemas/health.yaml#/ReadinessStatus'
+            examples:
+              notReady:
+                $ref: '../components/examples/health.yaml#/notReady'
+
+/health/live:
+  get:
+    tags:
+      - Health
+    summary: Liveness probe for Kubernetes
+    description: |
+      Kubernetes liveness probe endpoint. Checks if the service is alive
+      and responsive. This endpoint should always return 200 unless the
+      service is completely unresponsive.
+    operationId: livenessCheck
+    responses:
+      '200':
+        description: Service is alive
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '../components/schemas/health.yaml#/LivenessStatus'
+            examples:
+              alive:
+                $ref: '../components/examples/health.yaml#/alive'
+
+/metrics:
+  get:
+    tags:
+      - Metrics
+    summary: Application metrics
+    description: |
+      Retrieve comprehensive application metrics including performance,
+      resource usage, and business metrics. Requires admin privileges.
+    operationId: getMetrics
+    security:
+      - bearerAuth: []
+      - apiKeyAuth: []
+    responses:
+      '200':
+        description: Application metrics retrieved successfully
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '../components/schemas/health.yaml#/ApplicationMetrics'
+            examples:
+              metrics:
+                $ref: '../components/examples/health.yaml#/applicationMetrics'
+      '401':
+        $ref: '../components/responses/common.yaml#/UnauthorizedError'
+      '403':
+        $ref: '../components/responses/common.yaml#/ForbiddenError'
+
+/info:
+  get:
+    tags:
+      - Info
+    summary: Application information
+    description: |
+      Get general information about the API service including version,
+      features, and available endpoints. This endpoint is publicly accessible.
+    operationId: getInfo
+    responses:
+      '200':
+        description: Application information retrieved successfully
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '../components/schemas/health.yaml#/ApplicationInfo'
+            examples:
+              info:
+                $ref: '../components/examples/health.yaml#/applicationInfo'

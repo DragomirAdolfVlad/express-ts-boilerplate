@@ -4,7 +4,7 @@
 
 import express, { Application } from 'express';
 import { configureHelmet, configureCORS, configureRequestLimits, securityLogger } from '../middleware/security';
-import { defaultRateLimit, createApiKeyRateLimit } from '../middleware/rate-limit';
+// import { defaultRateLimit, createApiKeyRateLimit } from '../middleware/rate-limit';
 import { sanitizeInput } from '../middleware/validation';
 import { config } from './loader';
 import { log } from '../utils/logger';
@@ -57,16 +57,16 @@ export function configureSecurity(app: Application): void {
     app.use(sanitizeInput());
     log.debug('Input sanitization configured');
 
-    // 7. Rate limiting
-    app.use(defaultRateLimit);
-    log.debug('Default rate limiting configured', {
-        windowMs: config.rateLimit.windowMs,
-        maxRequests: config.rateLimit.maxRequests
-    });
+    // 7. Rate limiting - DISABLED for development
+    // app.use(defaultRateLimit);
+    // log.debug('Default rate limiting configured', {
+    //     windowMs: config.rateLimit.windowMs,
+    //     maxRequests: config.rateLimit.maxRequests
+    // });
 
-    // 8. API key specific rate limiting
-    app.use(createApiKeyRateLimit());
-    log.debug('API key rate limiting configured');
+    // 8. API key specific rate limiting - DISABLED for development
+    // app.use(createApiKeyRateLimit());
+    // log.debug('API key rate limiting configured');
 
     log.info('Security middleware configuration completed');
 }

@@ -22,12 +22,27 @@ const customLevels = {
 };
 
 /**
+ * Custom filter to skip info logs when in debug mode
+ */
+const debugModeFilter = winston.format((info) => {
+    const config = getConfig();
+
+    // If log level is debug and this is an info message, skip it
+    if (config.logging.level === 'debug' && info.level === 'info') {
+        return false;
+    }
+
+    return info;
+});
+
+/**
  * Create Winston logger instance
  */
 function createLogger(): winston.Logger {
     const config = getConfig();
-    
+
     const formats: winston.Logform.Format[] = [
+        debugModeFilter(), // Apply custom filter first
         winston.format.timestamp({
             format: 'YYYY-MM-DD HH:mm:ss.SSS'
         }),
@@ -45,15 +60,15 @@ function createLogger(): winston.Logger {
             winston.format.colorize({ all: true }),
             winston.format.printf(({ timestamp, level, message, metadata, stack }) => {
                 let log = `${timestamp} [${level}]: ${message}`;
-                
+
                 if (metadata && typeof metadata === 'object' && Object.keys(metadata).length > 0) {
                     log += ` ${JSON.stringify(metadata)}`;
                 }
-                
+
                 if (stack) {
                     log += `\n${stack}`;
                 }
-                
+
                 return log;
             })
         );
@@ -109,7 +124,7 @@ function parseSize(size: string): number {
 
     const value = parseInt(match[1]);
     const unit = match[2] || 'b';
-    
+
     return value * (units[unit] || 1);
 }
 

@@ -1,0 +1,214 @@
+# Health and monitoring examples
+
+basicHealth:
+  summary: Basic health check response
+  value:
+    success: true
+    data:
+      status: "healthy"
+      timestamp: "2025-09-23T01:23:45.678Z"
+      uptime: 3600.5
+      version: "1.0.0"
+      environment: "development"
+      node: "v20.10.0"
+    meta:
+      timestamp: "2025-09-23T01:23:45.678Z"
+      requestId: "req_clp1234567890abcdef"
+      version: "v1"
+
+detailedHealthy:
+  summary: Detailed health check - all healthy
+  value:
+    success: true
+    data:
+      status: "healthy"
+      timestamp: "2025-09-23T01:23:45.678Z"
+      uptime: 3600.5
+      version: "1.0.0"
+      environment: "development"
+      node: "v20.10.0"
+      checks:
+        database:
+          status: "healthy"
+          latency: 15.5
+        redis:
+          status: "healthy"
+          latency: 8.2
+        services:
+          status: "healthy"
+          services:
+            userService:
+              name: "UserService"
+              status: "healthy"
+              latency: 25.3
+              details:
+                database: "connected"
+                operations: "functional"
+            authService:
+              name: "AuthService"
+              status: "healthy"
+              latency: 18.7
+              details:
+                jwt: "functional"
+                cache: "connected"
+    meta:
+      timestamp: "2025-09-23T01:23:45.678Z"
+      requestId: "req_clp1234567890abcdef"
+      version: "v1"
+
+detailedUnhealthy:
+  summary: Detailed health check - some unhealthy
+  value:
+    success: true
+    data:
+      status: "unhealthy"
+      timestamp: "2025-09-23T01:23:45.678Z"
+      uptime: 3600.5
+      version: "1.0.0"
+      environment: "development"
+      node: "v20.10.0"
+      checks:
+        database:
+          status: "unhealthy"
+          latency: 5000.0
+          error: "Connection timeout"
+        redis:
+          status: "healthy"
+          latency: 8.2
+        services:
+          status: "unhealthy"
+          services:
+            userService:
+              name: "UserService"
+              status: "unhealthy"
+              latency: 5025.3
+              error: "Database connection failed"
+              details:
+                database: "disconnected"
+            authService:
+              name: "AuthService"
+              status: "healthy"
+              latency: 18.7
+              details:
+                jwt: "functional"
+                cache: "connected"
+    meta:
+      timestamp: "2025-09-23T01:23:45.678Z"
+      requestId: "req_clp1234567890abcdef"
+      version: "v1"
+
+ready:
+  summary: Service is ready
+  value:
+    success: true
+    data:
+      status: "ready"
+      timestamp: "2025-09-23T01:23:45.678Z"
+      message: "Service is ready to accept requests"
+    meta:
+      timestamp: "2025-09-23T01:23:45.678Z"
+      requestId: "req_clp1234567890abcdef"
+      version: "v1"
+
+notReady:
+  summary: Service is not ready
+  value:
+    success: true
+    data:
+      status: "not_ready"
+      timestamp: "2025-09-23T01:23:45.678Z"
+      message: "Service is not ready to accept requests"
+      error: "Database connection failed"
+    meta:
+      timestamp: "2025-09-23T01:23:45.678Z"
+      requestId: "req_clp1234567890abcdef"
+      version: "v1"
+
+alive:
+  summary: Service is alive
+  value:
+    success: true
+    data:
+      status: "alive"
+      timestamp: "2025-09-23T01:23:45.678Z"
+      uptime: 3600.5
+      memory:
+        rss: 52428800
+        heapTotal: 20971520
+        heapUsed: 15728640
+        external: 1048576
+      pid: 12345
+    meta:
+      timestamp: "2025-09-23T01:23:45.678Z"
+      requestId: "req_clp1234567890abcdef"
+      version: "v1"
+
+applicationMetrics:
+  summary: Application metrics
+  value:
+    success: true
+    data:
+      timestamp: "2025-09-23T01:23:45.678Z"
+      uptime: 3600.5
+      memory:
+        rss: 52428800
+        heapTotal: 20971520
+        heapUsed: 15728640
+        external: 1048576
+      cpu:
+        user: 1000000
+        system: 500000
+      system:
+        platform: "win32"
+        arch: "x64"
+        nodeVersion: "v20.10.0"
+        pid: 12345
+      application:
+        version: "1.0.0"
+        environment: "development"
+        port: 3000
+      security:
+        helmet:
+          enabled: true
+          features: ["contentSecurityPolicy", "hsts", "noSniff", "xssFilter"]
+        cors:
+          enabled: true
+          allowedOrigins: ["http://localhost:3000"]
+        rateLimit:
+          enabled: true
+          windowMs: 900000
+          maxRequests: 100
+    meta:
+      timestamp: "2025-09-23T01:23:45.678Z"
+      requestId: "req_clp1234567890abcdef"
+      version: "v1"
+
+applicationInfo:
+  summary: Application information
+  value:
+    success: true
+    data:
+      name: "Express TypeScript Boilerplate"
+      description: "Production-ready Express.js TypeScript boilerplate for blockchain microservices"
+      version: "1.0.0"
+      environment: "development"
+      node: "v20.10.0"
+      uptime: 3600.5
+      timestamp: "2025-09-23T01:23:45.678Z"
+      features:
+        authentication: ["JWT", "API Keys"]
+        authorization: ["RBAC", "Permissions"]
+        security: ["Helmet", "CORS", "Rate Limiting", "Input Validation"]
+        database: ["PostgreSQL", "Prisma ORM"]
+        cache: ["Redis"]
+        logging: ["Winston", "Structured Logging"]
+        monitoring: ["Health Checks", "Metrics"]
+        documentation: ["OpenAPI/Swagger"]
+      endpoints:
+        health: "/api/v1/health"
+        metrics: "/api/v1/metrics"
+        docs: "/api-docs"
+    meta:
+      timestamp: "2025-09-23T01:23:45.678Z"
+      requestId: "req_clp1234567890abcdef"
+      version: "v1"

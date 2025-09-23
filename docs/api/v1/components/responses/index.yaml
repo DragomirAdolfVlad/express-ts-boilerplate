@@ -1,0 +1,16 @@
+# Response index - imports all response files
+
+ValidationError:
+  $ref: './common.yaml#/ValidationError'
+UnauthorizedError:
+  $ref: './common.yaml#/UnauthorizedError'
+ForbiddenError:
+  $ref: './common.yaml#/ForbiddenError'
+NotFoundError:
+  $ref: './common.yaml#/NotFoundError'
+ConflictError:
+  $ref: './common.yaml#/ConflictError'
+RateLimitError:
+  $ref: './common.yaml#/RateLimitError'
+InternalServerError:
+  $ref: './common.yaml#/InternalServerError'

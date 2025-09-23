@@ -1,0 +1,170 @@
+# User-related schemas
+
+User:
+  type: object
+  description: User object
+  required:
+    - id
+    - email
+    - username
+    - isActive
+    - createdAt
+    - updatedAt
+  properties:
+    id:
+      $ref: './common.yaml#/Id'
+    email:
+      $ref: './common.yaml#/Email'
+    username:
+      $ref: './common.yaml#/Username'
+    firstName:
+      type: string
+      nullable: true
+      minLength: 1
+      maxLength: 50
+      description: User's first name
+      example: "John"
+    lastName:
+      type: string
+      nullable: true
+      minLength: 1
+      maxLength: 50
+      description: User's last name
+      example: "Doe"
+    isActive:
+      type: boolean
+      description: Whether the user account is active
+      example: true
+    createdAt:
+      $ref: './common.yaml#/Timestamp'
+    updatedAt:
+      $ref: './common.yaml#/Timestamp'
+    apiKeys:
+      type: array
+      description: User's API keys (summary information only)
+      items:
+        type: object
+        properties:
+          id:
+            $ref: './common.yaml#/Id'
+          name:
+            type: string
+            example: "My Application Key"
+          isActive:
+            type: boolean
+            example: true
+          expiresAt:
+            type: string
+            format: date-time
+            nullable: true
+            example: "2026-09-23T01:23:45.678Z"
+          createdAt:
+            $ref: './common.yaml#/Timestamp'
+
+CreateUserRequest:
+  type: object
+  description: User creation request
+  required:
+    - email
+    - username
+    - password
+  properties:
+    email:
+      $ref: './common.yaml#/Email'
+    username:
+      $ref: './common.yaml#/Username'
+    password:
+      $ref: './common.yaml#/Password'
+    firstName:
+      type: string
+      minLength: 1
+      maxLength: 50
+      description: User's first name
+      example: "John"
+    lastName:
+      type: string
+      minLength: 1
+      maxLength: 50
+      description: User's last name
+      example: "Doe"
+    roles:
+      type: array
+      items:
+        type: string
+        enum: [USER, ADMIN, MODERATOR]
+      default: ["USER"]
+      description: User roles
+      example: ["USER"]
+
+UpdateUserRequest:
+  type: object
+  description: User update request
+  properties:
+    email:
+      $ref: './common.yaml#/Email'
+    username:
+      $ref: './common.yaml#/Username'
+    password:
+      $ref: './common.yaml#/Password'
+    firstName:
+      type: string
+      nullable: true
+      minLength: 1
+      maxLength: 50
+      description: User's first name
+      example: "John"
+    lastName:
+      type: string
+      nullable: true
+      minLength: 1
+      maxLength: 50
+      description: User's last name
+      example: "Doe"
+    isActive:
+      type: boolean
+      description: Whether the user account is active (admin only)
+      example: true
+
+UserFilter:
+  type: object
+  description: User filtering options
+  properties:
+    email:
+      type: string
+      description: Filter by email (partial match)
+      example: "john"
+    username:
+      type: string
+      description: Filter by username (partial match)
+      example: "john"
+    isActive:
+      type: boolean
+      description: Filter by active status
+      example: true
+    search:
+      type: string
+      minLength: 1
+      maxLength: 100
+      description: Search term for name or email
+      example: "john"
+
+UserRole:
+  type: object
+  description: User role assignment
+  required:
+    - id
+    - userId
+    - role
+    - createdAt
+  properties:
+    id:
+      $ref: './common.yaml#/Id'
+    userId:
+      $ref: './common.yaml#/Id'
+    role:
+      type: string
+      enum: [USER, ADMIN, MODERATOR]
+      description: Role name
+      example: "USER"
+    createdAt:
+      $ref: './common.yaml#/Timestamp'

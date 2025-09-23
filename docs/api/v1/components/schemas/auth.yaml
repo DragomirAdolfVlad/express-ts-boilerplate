@@ -1,0 +1,252 @@
+# Authentication-related schemas
+
+LoginRequest:
+  type: object
+  description: User login request
+  required:
+    - email
+    - password
+  properties:
+    email:
+      $ref: './common.yaml#/Email'
+    password:
+      type: string
+      description: User password
+      example: "password123"
+
+LoginResponse:
+  type: object
+  description: Successful login response
+  required:
+    - user
+    - accessToken
+    - refreshToken
+    - expiresIn
+  properties:
+    user:
+      $ref: './users.yaml#/User'
+    accessToken:
+      type: string
+      description: JWT access token
+      example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+    refreshToken:
+      type: string
+      description: JWT refresh token
+      example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+    expiresIn:
+      type: integer
+      description: Access token expiration time in seconds
+      example: 900
+
+RefreshTokenRequest:
+  type: object
+  description: Token refresh request
+  required:
+    - refreshToken
+  properties:
+    refreshToken:
+      type: string
+      description: Valid refresh token
+      example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+
+RefreshTokenResponse:
+  type: object
+  description: Token refresh response
+  required:
+    - accessToken
+    - refreshToken
+    - expiresIn
+  properties:
+    accessToken:
+      type: string
+      description: New JWT access token
+      example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+    refreshToken:
+      type: string
+      description: New JWT refresh token
+      example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+    expiresIn:
+      type: integer
+      description: Access token expiration time in seconds
+      example: 900
+
+AuthContextResponse:
+  type: object
+  description: Current authentication context
+  required:
+    - type
+  properties:
+    type:
+      type: string
+      enum: [jwt, apikey]
+      description: Authentication method used
+      example: "jwt"
+    user:
+      description: User information (for JWT authentication)
+      type: object
+      properties:
+        id:
+          $ref: './common.yaml#/Id'
+        email:
+          $ref: './common.yaml#/Email'
+        roles:
+          type: array
+          items:
+            type: string
+          example: ["USER"]
+    apiKey:
+      description: API key information (for API key authentication)
+      type: object
+      properties:
+        id:
+          $ref: './common.yaml#/Id'
+        keyId:
+          type: string
+          example: "ak_1234567890_user"
+        userId:
+          $ref: './common.yaml#/Id'
+        permissions:
+          type: array
+          items:
+            type: string
+          example: ["read", "write"]
+
+VerifyTokenRequest:
+  type: object
+  description: Token verification request
+  required:
+    - token
+  properties:
+    token:
+      type: string
+      description: JWT token to verify
+      example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+    type:
+      type: string
+      enum: [access, refresh]
+      default: access
+      description: Token type to verify
+      example: "access"
+
+VerifyTokenResponse:
+  type: object
+  description: Token verification result
+  required:
+    - valid
+  properties:
+    valid:
+      type: boolean
+      description: Whether the token is valid
+      example: true
+    payload:
+      description: Token payload (if valid)
+      type: object
+      properties:
+        userId:
+          $ref: './common.yaml#/Id'
+        email:
+          $ref: './common.yaml#/Email'
+        roles:
+          type: array
+          items:
+            type: string
+          example: ["USER"]
+        type:
+          type: string
+          enum: [access, refresh]
+          example: "access"
+        exp:
+          type: integer
+          description: Expiration timestamp
+          example: 1695427425
+        iat:
+          type: integer
+          description: Issued at timestamp
+          example: 1695426525
+    error:
+      type: string
+      description: Error message (if invalid)
+      example: "Token expired"
+
+CreateApiKeyRequest:
+  type: object
+  description: API key creation request
+  required:
+    - name
+  properties:
+    name:
+      type: string
+      minLength: 1
+      maxLength: 100
+      description: Human-readable name for the API key
+      example: "My Application Key"
+    permissions:
+      type: array
+      items:
+        type: string
+      default: []
+      description: List of permissions for the API key
+      example: ["read", "write"]
+    expiresAt:
+      type: string
+      format: date-time
+      description: Optional expiration date for the API key
+      example: "2026-09-23T01:23:45.678Z"
+    rateLimit:
+      type: object
+      description: Custom rate limiting for this API key
+      properties:
+        requests:
+          type: integer
+          minimum: 1
+          maximum: 100000
+          default: 1000
+          description: Maximum requests per window
+          example: 5000
+        windowMs:
+          type: integer
+          minimum: 1000
+          maximum: 86400000
+          default: 3600000
+          description: Time window in milliseconds
+          example: 3600000
+
+ApiKeyResponse:
+  type: object
+  description: API key creation response
+  required:
+    - id
+    - keyId
+    - key
+    - name
+    - permissions
+    - createdAt
+  properties:
+    id:
+      $ref: './common.yaml#/Id'
+    keyId:
+      type: string
+      description: API key identifier
+      example: "ak_1234567890_user"
+    key:
+      type: string
+      description: The actual API key (only returned on creation)
+      example: "9f4fc77dfd0664034f30b64e6720c53b220d81080eec7ab2daa0059fc46986cc"
+    name:
+      type: string
+      description: Human-readable name
+      example: "My Application Key"
+    permissions:
+      type: array
+      items:
+        type: string
+      description: List of permissions
+      example: ["read", "write"]
+    expiresAt:
+      type: string
+      format: date-time
+      nullable: true
+      description: Expiration date (null if no expiration)
+      example: "2026-09-23T01:23:45.678Z"
+    createdAt:
+      $ref: './common.yaml#/Timestamp'

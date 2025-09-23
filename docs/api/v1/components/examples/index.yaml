@@ -1,0 +1,67 @@
+# Examples index - imports all example files
+
+# Authentication examples
+validLogin:
+  $ref: './auth.yaml#/validLogin'
+loginSuccess:
+  $ref: './auth.yaml#/loginSuccess'
+validRefresh:
+  $ref: './auth.yaml#/validRefresh'
+jwtAuthContext:
+  $ref: './auth.yaml#/jwtAuthContext'
+apiKeyAuthContext:
+  $ref: './auth.yaml#/apiKeyAuthContext'
+verifyAccess:
+  $ref: './auth.yaml#/verifyAccess'
+verifyRefresh:
+  $ref: './auth.yaml#/verifyRefresh'
+validTokenVerification:
+  $ref: './auth.yaml#/validTokenVerification'
+invalidTokenVerification:
+  $ref: './auth.yaml#/invalidTokenVerification'
+basicApiKey:
+  $ref: './auth.yaml#/basicApiKey'
+advancedApiKey:
+  $ref: './auth.yaml#/advancedApiKey'
+apiKeyCreated:
+  $ref: './auth.yaml#/apiKeyCreated'
+
+# User examples
+basicUser:
+  $ref: './users.yaml#/basicUser'
+fullUser:
+  $ref: './users.yaml#/fullUser'
+userCreated:
+  $ref: './users.yaml#/userCreated'
+usersList:
+  $ref: './users.yaml#/usersList'
+currentUser:
+  $ref: './users.yaml#/currentUser'
+updateProfile:
+  $ref: './users.yaml#/updateProfile'
+profileUpdated:
+  $ref: './users.yaml#/profileUpdated'
+userById:
+  $ref: './users.yaml#/userById'
+updateUser:
+  $ref: './users.yaml#/updateUser'
+userUpdated:
+  $ref: './users.yaml#/userUpdated'
+
+# Health examples
+basicHealth:
+  $ref: './health.yaml#/basicHealth'
+detailedHealthy:
+  $ref: './health.yaml#/detailedHealthy'
+detailedUnhealthy:
+  $ref: './health.yaml#/detailedUnhealthy'
+ready:
+  $ref: './health.yaml#/ready'
+notReady:
+  $ref: './health.yaml#/notReady'
+alive:
+  $ref: './health.yaml#/alive'
+applicationMetrics:
+  $ref: './health.yaml#/applicationMetrics'
+applicationInfo:
+  $ref: './health.yaml#/applicationInfo'

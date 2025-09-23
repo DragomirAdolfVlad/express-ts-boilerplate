@@ -1,0 +1,132 @@
+openapi: 3.0.3
+info:
+  title: Express TypeScript Boilerplate API
+  description: |
+    Production-ready Express.js TypeScript boilerplate for blockchain microservices.
+    
+    This API provides comprehensive user management, authentication, and health monitoring
+    capabilities with enterprise-grade security features.
+    
+    ## Features
+    - JWT and API Key authentication
+    - Role-based access control (RBAC)
+    - Rate limiting with Redis backend
+    - Input validation and sanitization
+    - Comprehensive health checks
+    - Metrics collection
+    - Security headers and CORS
+    
+    ## Authentication
+    This API supports two authentication methods:
+    1. **JWT Bearer Token** - For user sessions
+    2. **API Key** - For service-to-service communication
+    
+    ## Rate Limiting
+    All endpoints are rate limited. Limits vary by endpoint and authentication method.
+    Rate limit information is provided in response headers.
+    
+    ## Error Handling
+    All errors follow a consistent format with appropriate HTTP status codes.
+    
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: support@example.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:3000/api/v1
+    description: Development server
+  - url: https://api.example.com/v1
+    description: Production server
+
+# Security schemes
+security:
+  - bearerAuth: []
+  - apiKeyAuth: []
+
+# Global tags
+tags:
+  - name: Authentication
+    description: User authentication and token management
+  - name: Users
+    description: User management operations
+  - name: Health
+    description: Health checks and service status
+  - name: Metrics
+    description: Application metrics and monitoring
+  - name: Info
+    description: Service information and capabilities
+
+# Paths - organized by resource
+paths:
+  # Authentication endpoints
+  /auth/login:
+    $ref: './paths/auth.yaml#/~1auth~1login'
+  /auth/refresh:
+    $ref: './paths/auth.yaml#/~1auth~1refresh'
+  /auth/logout:
+    $ref: './paths/auth.yaml#/~1auth~1logout'
+  /auth/me:
+    $ref: './paths/auth.yaml#/~1auth~1me'
+  /auth/verify:
+    $ref: './paths/auth.yaml#/~1auth~1verify'
+  /auth/api-keys:
+    $ref: './paths/auth.yaml#/~1auth~1api-keys'
+  /auth/api-keys/{keyId}:
+    $ref: './paths/auth.yaml#/~1auth~1api-keys~1{keyId}'
+
+  # User endpoints
+  /users:
+    $ref: './paths/users.yaml#/~1users'
+  /users/me:
+    $ref: './paths/users.yaml#/~1users~1me'
+  /users/{id}:
+    $ref: './paths/users.yaml#/~1users~1{id}'
+
+  # Health endpoints
+  /health:
+    $ref: './paths/health.yaml#/~1health'
+  /health/detailed:
+    $ref: './paths/health.yaml#/~1health~1detailed'
+  /health/ready:
+    $ref: './paths/health.yaml#/~1health~1ready'
+  /health/live:
+    $ref: './paths/health.yaml#/~1health~1live'
+  /metrics:
+    $ref: './paths/health.yaml#/~1metrics'
+  /info:
+    $ref: './paths/health.yaml#/~1info'
+
+# Components - reusable schemas, responses, parameters, etc.
+components:
+  # Security schemes
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from /auth/login
+    apiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key in format "keyId.key"
+
+  # Reusable schemas
+  schemas:
+    $ref: './components/schemas/index.yaml'
+
+  # Reusable responses
+  responses:
+    $ref: './components/responses/index.yaml'
+
+  # Reusable parameters
+  parameters:
+    $ref: './components/parameters/index.yaml'
+
+  # Examples
+  examples:
+    $ref: './components/examples/index.yaml'

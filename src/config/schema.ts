@@ -24,7 +24,7 @@ const databaseSchema = Joi.object({
 const redisSchema = Joi.object({
     host: Joi.string().default('localhost'),
     port: Joi.number().port().default(6379),
-    password: Joi.string().optional(),
+    password: Joi.string().allow('').optional(),
     db: Joi.number().min(0).max(15).default(0),
     maxRetriesPerRequest: Joi.number().min(0).default(3),
     retryDelayOnFailover: Joi.number().positive().default(100),
