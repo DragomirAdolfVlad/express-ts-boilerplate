@@ -80,12 +80,10 @@ export function requestLoggingMiddleware(req: Request, res: Response, next: Next
 
     // Capture original res.end to log response
     const originalEnd = res.end;
-    let responseBody: string | undefined;
 
     // Override res.json to capture response body
     const originalJson = res.json;
     res.json = function(body: any) {
-        responseBody = JSON.stringify(body);
         return originalJson.call(this, body);
     };
 
@@ -128,7 +126,7 @@ export function requestLoggingMiddleware(req: Request, res: Response, next: Next
 /**
  * User context middleware (to be used after authentication)
  */
-export function userContextMiddleware(req: Request, res: Response, next: NextFunction): void {
+export function userContextMiddleware(req: Request, _res: Response, next: NextFunction): void {
     const user = (req as any).user;
     
     if (user) {
@@ -152,7 +150,7 @@ export function userContextMiddleware(req: Request, res: Response, next: NextFun
 /**
  * Security headers logging middleware
  */
-export function securityLoggingMiddleware(req: Request, res: Response, next: NextFunction): void {
+export function securityLoggingMiddleware(req: Request, _res: Response, next: NextFunction): void {
     const securityHeaders = {
         'x-forwarded-for': req.headers['x-forwarded-for'],
         'x-real-ip': req.headers['x-real-ip'],
@@ -219,7 +217,7 @@ export function performanceMiddleware(req: Request, res: Response, next: NextFun
 /**
  * Request size logging middleware
  */
-export function requestSizeMiddleware(req: Request, res: Response, next: NextFunction): void {
+export function requestSizeMiddleware(req: Request, _res: Response, next: NextFunction): void {
     const contentLength = parseInt(req.headers['content-length'] || '0');
     
     if (contentLength > 0) {

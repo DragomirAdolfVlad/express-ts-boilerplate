@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { AppError, isOperationalError, createErrorFromUnknown } from '../utils/errors';
+import { AppError, createErrorFromUnknown } from '../utils/errors';
 import { log } from '../utils/logger';
 
 /**
@@ -25,7 +25,7 @@ export function errorHandler(
     error: unknown,
     req: Request,
     res: Response,
-    next: NextFunction
+    _next: NextFunction
 ): void {
     // Convert unknown error to AppError
     const appError = createErrorFromUnknown(error, {
@@ -82,7 +82,7 @@ function logError(error: AppError, req: Request): void {
  */
 function sendErrorResponse(error: AppError, res: Response): void {
     const isDevelopment = process.env['NODE_ENV'] === 'development';
-    
+
     const errorResponse: ErrorResponse = {
         success: false,
         error: {
@@ -105,7 +105,7 @@ function sendErrorResponse(error: AppError, res: Response): void {
 
     // Set appropriate headers
     res.status(error.statusCode);
-    
+
     // Add rate limit headers if applicable
     if (error.name === 'RateLimitError') {
         const rateLimitError = error as any;
@@ -128,26 +128,27 @@ function sendErrorResponse(error: AppError, res: Response): void {
  */
 function getErrorSpecificDetails(error: AppError): Record<string, unknown> {
     const details: Record<string, unknown> = {};
+    const errorAny = error as unknown as Record<string, unknown>;
 
     // Add specific error details based on error type
     if ('field' in error) {
-        details.field = (error as any).field;
-        details.value = (error as any).value;
+        details['field'] = errorAny['field'];
+        details['value'] = errorAny['value'];
     }
 
     if ('resource' in error) {
-        details.resource = (error as any).resource;
-        details.resourceId = (error as any).resourceId;
+        details['resource'] = errorAny['resource'];
+        details['resourceId'] = errorAny['resourceId'];
     }
 
     if ('requiredPermission' in error) {
-        details.requiredPermission = (error as any).requiredPermission;
-        details.userPermissions = (error as any).userPermissions;
+        details['requiredPermission'] = errorAny['requiredPermission'];
+        details['userPermissions'] = errorAny['userPermissions'];
     }
 
     if ('service' in error) {
-        details.service = (error as any).service;
-        details.endpoint = (error as any).endpoint;
+        details['service'] = errorAny['service'];
+        details['endpoint'] = errorAny['endpoint'];
     }
 
     return details;
@@ -156,7 +157,7 @@ function getErrorSpecificDetails(error: AppError): Record<string, unknown> {
 /**
  * Handle 404 errors for unmatched routes
  */
-export function notFoundHandler(req: Request, res: Response, next: NextFunction): void {
+export function notFoundHandler(req: Request, _res: Response, next: NextFunction): void {
     const error = new (require('../utils/errors').NotFoundError)(
         `Route ${req.method} ${req.path} not found`,
         'route',
