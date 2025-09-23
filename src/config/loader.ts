@@ -127,3 +127,8 @@ export function validateConfig(): void {
         process.exit(1);
     }
 }
+
+/**
+ * Global configuration instance
+ */
+export const config = loadConfig();

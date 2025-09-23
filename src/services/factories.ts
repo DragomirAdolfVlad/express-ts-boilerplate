@@ -2,8 +2,9 @@
  * Service factories for dependency injection
  */
 
-import { BaseServiceFactory } from './container';
+import { BaseServiceFactory, getService } from './container';
 import { UserService } from './user-service';
+import { AuthService } from './auth-service';
 import { CacheService, enhancedCacheService } from './cache-service';
 import { getPrismaClient } from './database';
 import { log } from '../utils/logger';
@@ -17,6 +18,18 @@ export class UserServiceFactory extends BaseServiceFactory<UserService> {
         
         const prisma = getPrismaClient();
         return new UserService(prisma);
+    }
+}
+
+/**
+ * Auth service factory
+ */
+export class AuthServiceFactory extends BaseServiceFactory<AuthService> {
+    create(): AuthService {
+        log.debug('Creating AuthService instance');
+        
+        const userService = getService<UserService>('userService');
+        return new AuthService(userService);
     }
 }
 
@@ -36,6 +49,7 @@ export class CacheServiceFactory extends BaseServiceFactory<CacheService> {
  */
 export const serviceFactories = {
     userService: new UserServiceFactory(),
+    authService: new AuthServiceFactory(),
     cacheService: new CacheServiceFactory()
 } as const;
 

@@ -16,15 +16,15 @@ model User {
     email     String   @unique
     username  String   @unique
     password  String
-    firstName String?
-    lastName  String?
-    isActive  Boolean  @default(true)
-    role      UserRole @default(USER)
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
+    firstName String?  @map("first_name")
+    lastName  String?  @map("last_name")
+    isActive  Boolean  @default(true) @map("is_active")
+    createdAt DateTime @default(now()) @map("created_at")
+    updatedAt DateTime @updatedAt @map("updated_at")
 
     // Relations
-    apiKeys ApiKey[]
+    apiKeys   ApiKey[]
+    userRoles UserRole[]
 
     @@map("users")
 }
@@ -32,26 +32,34 @@ model User {
 // API Key model for API authentication
 model ApiKey {
     id          String    @id @default(cuid())
+    keyId       String    @unique @map("key_id")
     name        String
-    key         String    @unique
-    hashedKey   String
-    isActive    Boolean   @default(true)
-    expiresAt   DateTime?
-    lastUsedAt  DateTime?
-    permissions String[]  @default([])
-    createdAt   DateTime  @default(now())
-    updatedAt   DateTime  @updatedAt
+    hashedKey   String    @map("hashed_key")
+    isActive    Boolean   @default(true) @map("is_active")
+    expiresAt   DateTime? @map("expires_at")
+    lastUsedAt  DateTime? @map("last_used_at")
+    permissions Json      @default("[]")
+    rateLimit   Json      @default("{}") @map("rate_limit")
+    createdAt   DateTime  @default(now()) @map("created_at")
+    updatedAt   DateTime  @updatedAt @map("updated_at")
 
     // Relations
-    userId String
+    userId String @map("user_id")
     user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
     @@map("api_keys")
 }
 
-// User roles enum
-enum UserRole {
-    ADMIN
-    USER
-    MODERATOR
+// User roles model for many-to-many relationship
+model UserRole {
+    id        String   @id @default(cuid())
+    userId    String   @map("user_id")
+    role      String
+    createdAt DateTime @default(now()) @map("created_at")
+
+    // Relations
+    user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    @@unique([userId, role])
+    @@map("user_roles")
 }

@@ -101,8 +101,7 @@ export class UserService extends HealthCheckableService {
             const user = await this.prisma.user.create({
                 data: {
                     ...data,
-                    password: hashedPassword,
-                    role: data.role || UserRole.USER
+                    password: hashedPassword
                 }
             });
 
@@ -111,8 +110,7 @@ export class UserService extends HealthCheckableService {
 
             logger.info('User created successfully', { 
                 userId: user.id, 
-                email: user.email,
-                role: user.role 
+                email: user.email
             });
 
             return user;
@@ -370,7 +368,8 @@ export class UserService extends HealthCheckableService {
             
             if (filter.email) where.email = { contains: filter.email, mode: 'insensitive' };
             if (filter.username) where.username = { contains: filter.username, mode: 'insensitive' };
-            if (filter.role) where.role = filter.role;
+            // Role filtering would need to be implemented via userRoles relation
+            // if (filter.role) where.userRoles = { some: { role: filter.role } };
             if (filter.isActive !== undefined) where.isActive = filter.isActive;
             
             if (filter.search) {

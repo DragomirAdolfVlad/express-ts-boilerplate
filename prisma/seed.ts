@@ -1,6 +1,6 @@
-import { PrismaClient, UserRole } from '@prisma/client';
-import bcrypt from 'bcrypt';
-import crypto from 'crypto';
+import { PrismaClient } from '@prisma/client';
+import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 
 const prisma = new PrismaClient();
 
@@ -36,8 +36,22 @@ async function seed() {
                 password: adminPassword,
                 firstName: 'Admin',
                 lastName: 'User',
-                role: UserRole.ADMIN,
                 isActive: true
+            }
+        });
+
+        // Create admin role
+        await prisma.userRole.upsert({
+            where: { 
+                userId_role: {
+                    userId: adminUser.id,
+                    role: 'ADMIN'
+                }
+            },
+            update: {},
+            create: {
+                userId: adminUser.id,
+                role: 'ADMIN'
             }
         });
 
@@ -54,8 +68,22 @@ async function seed() {
                 password: userPassword,
                 firstName: 'Regular',
                 lastName: 'User',
-                role: UserRole.USER,
                 isActive: true
+            }
+        });
+
+        // Create user role
+        await prisma.userRole.upsert({
+            where: { 
+                userId_role: {
+                    userId: regularUser.id,
+                    role: 'USER'
+                }
+            },
+            update: {},
+            create: {
+                userId: regularUser.id,
+                role: 'USER'
             }
         });
 
@@ -72,8 +100,22 @@ async function seed() {
                 password: moderatorPassword,
                 firstName: 'Moderator',
                 lastName: 'User',
-                role: UserRole.MODERATOR,
                 isActive: true
+            }
+        });
+
+        // Create moderator role
+        await prisma.userRole.upsert({
+            where: { 
+                userId_role: {
+                    userId: moderatorUser.id,
+                    role: 'MODERATOR'
+                }
+            },
+            update: {},
+            create: {
+                userId: moderatorUser.id,
+                role: 'MODERATOR'
             }
         });
 
@@ -81,42 +123,46 @@ async function seed() {
 
         // Create API keys for admin user
         const adminApiKey = generateApiKey();
+        const adminKeyId = `ak_${Date.now()}_admin`;
         const adminHashedKey = await hashApiKey(adminApiKey);
         
         await prisma.apiKey.upsert({
-            where: { key: adminApiKey },
+            where: { keyId: adminKeyId },
             update: {},
             create: {
+                keyId: adminKeyId,
                 name: 'Admin Development Key',
-                key: adminApiKey,
                 hashedKey: adminHashedKey,
                 userId: adminUser.id,
                 permissions: ['read', 'write', 'delete', 'admin'],
+                rateLimit: { requests: 10000, windowMs: 3600000 }, // 10k req/hour
                 isActive: true
             }
         });
 
-        console.log('✅ Created admin API key:', adminApiKey);
+        console.log('✅ Created admin API key:', `${adminKeyId}.${adminApiKey}`);
 
         // Create API key for regular user
         const userApiKey = generateApiKey();
+        const userKeyId = `ak_${Date.now()}_user`;
         const userHashedKey = await hashApiKey(userApiKey);
         
         await prisma.apiKey.upsert({
-            where: { key: userApiKey },
+            where: { keyId: userKeyId },
             update: {},
             create: {
+                keyId: userKeyId,
                 name: 'User Development Key',
-                key: userApiKey,
                 hashedKey: userHashedKey,
                 userId: regularUser.id,
                 permissions: ['read', 'write'],
+                rateLimit: { requests: 1000, windowMs: 3600000 }, // 1k req/hour
                 isActive: true,
                 expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) // 1 year from now
             }
         });
 
-        console.log('✅ Created user API key:', userApiKey);
+        console.log('✅ Created user API key:', `${userKeyId}.${userApiKey}`);
 
         console.log('\n🎉 Database seeding completed successfully!');
         console.log('\n📋 Development Credentials:');
@@ -124,8 +170,8 @@ async function seed() {
         console.log('Regular User: user@example.com / user123');
         console.log('Moderator User: moderator@example.com / moderator123');
         console.log('\n🔑 API Keys:');
-        console.log('Admin API Key:', adminApiKey);
-        console.log('User API Key:', userApiKey);
+        console.log('Admin API Key:', `${adminKeyId}.${adminApiKey}`);
+        console.log('User API Key:', `${userKeyId}.${userApiKey}`);
 
     } catch (error) {
         console.error('❌ Error seeding database:', error);

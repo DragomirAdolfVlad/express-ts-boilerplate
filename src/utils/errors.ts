@@ -92,6 +92,15 @@ export class AuthenticationError extends AppError {
 }
 
 /**
+ * Unauthorized error (401) - alias for AuthenticationError
+ */
+export class UnauthorizedError extends AuthenticationError {
+    constructor(message: string = 'Unauthorized', context?: ErrorContext) {
+        super(message, context);
+    }
+}
+
+/**
  * Authorization error (403)
  */
 export class AuthorizationError extends AppError {
@@ -115,6 +124,15 @@ export class AuthorizationError extends AppError {
             requiredPermission: this.requiredPermission,
             userPermissions: this.userPermissions
         };
+    }
+}
+
+/**
+ * Forbidden error (403) - alias for AuthorizationError
+ */
+export class ForbiddenError extends AuthorizationError {
+    constructor(message: string = 'Forbidden', context?: ErrorContext) {
+        super(message, undefined, undefined, context);
     }
 }
 

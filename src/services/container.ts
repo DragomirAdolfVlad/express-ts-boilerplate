@@ -12,6 +12,7 @@ import { log } from '../utils/logger';
  */
 export interface ServiceContainer {
     userService: any; // Will be properly typed when used
+    authService: any; // Will be properly typed when used
     cacheService: typeof cacheService;
     databaseService: ReturnType<typeof getPrismaClient>;
     redisService: ReturnType<typeof getRedisClient>;
@@ -133,6 +134,10 @@ class Container implements ServiceContainer {
         return serviceRegistry.get<any>('userService');
     }
 
+    get authService(): any {
+        return serviceRegistry.get<any>('authService');
+    }
+
     get cacheService(): typeof cacheService {
         return serviceRegistry.get<typeof cacheService>('cacheService');
     }
@@ -165,6 +170,7 @@ export function initializeContainer(): void {
     
     // Register service factories
     serviceRegistry.registerFactory('userService', serviceFactories.userService);
+    serviceRegistry.registerFactory('authService', serviceFactories.authService);
     serviceRegistry.registerFactory('enhancedCacheService', serviceFactories.cacheService);
 
     log.info('Service container initialized', {
