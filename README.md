@@ -33,7 +33,7 @@
 ### 1. Clone and Install
 
 ```bash
-git clone https://github.com/afterglow420/express-ts-boilerplate.git
+git clone https://github.com/seertrade/express-ts-boilerplate.git
 cd express-ts-boilerplate
 npm install
 ```
@@ -322,8 +322,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 📞 Support
 
 - **Documentation**: Check the [docs](docs/) folder
-- **Issues**: [GitHub Issues](https://github.com/afterglow420/express-ts-boilerplate/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/afterglow420/express-ts-boilerplate/discussions)
+- **Issues**: [GitHub Issues](https://github.com/seertrade/express-ts-boilerplate/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/seertrade/express-ts-boilerplate/discussions)
 
 ---
 
