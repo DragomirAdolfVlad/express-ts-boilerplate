@@ -94,7 +94,7 @@ prisma/dev.db
 prisma/dev.db-journal
 
 # Kiro IDE
-.kiro/specs/express-ts-boilerplate/tasks.md
+.kiro/
 
 # Docker
 .dockerignore
