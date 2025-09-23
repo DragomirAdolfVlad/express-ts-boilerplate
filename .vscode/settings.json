@@ -1,6 +1,11 @@
 {
     "kiroAgent.configureMCP": "Disabled",
     "cSpell.words": [
+        "alphanum",
+        "apikey",
+        "cuid",
+        "frameguard",
+        "hsts",
         "lockfiles",
         "maxmemory",
         "NUMSUB",
@@ -8,6 +13,7 @@
         "psubscribe",
         "punsubscribe",
         "setex",
+        "smhd",
         "Solana"
     ]
 }
