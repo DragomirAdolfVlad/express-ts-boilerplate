@@ -11,7 +11,8 @@
 
 ## 🚀 Features
 
-- **🏗️ Clean Architecture** - Layered architecture with dependency injection
+### 🏗️ Core Architecture
+- **Clean Architecture** - Layered architecture with dependency injection
 - **🔐 Authentication & Authorization** - JWT + API Key authentication with RBAC
 - **📊 Database Integration** - Prisma ORM with PostgreSQL
 - **⚡ Redis Caching** - Caching with invalidation strategies
@@ -20,6 +21,16 @@
 - **📈 Monitoring** - Structured logging, health checks
 - **🧪 Developer Experience** - Hot reload, linting, formatting, type safety
 - **🔧 Production Ready** - Error handling, graceful shutdown, environment configs
+
+### ⛓️ Blockchain Tracking (NEW)
+- **🌐 Monad Blockchain Integration** - Full blockchain data tracking and analysis
+- **🏠 Address Monitoring** - User-customizable address tracking with real-time alerts
+- **🪙 Token Analytics** - ERC-20/721/1155 token tracking with transfer analysis
+- **💹 nad.fun Integration** - Liquidity pool tracking and trading analytics
+- **🔍 Advanced Search** - Search blocks, transactions, addresses, and tokens
+- **📊 Real-time Analytics** - Trading statistics, volume analysis, and trending data
+- **🚨 Smart Alerts** - Configurable notifications for address activity
+- **📈 Portfolio Tracking** - Multi-token balance monitoring and history
 
 ## 📋 Prerequisites
 
@@ -85,6 +96,7 @@ Interactive API documentation is available at:
 
 ### Available Endpoints
 
+#### 🔐 Authentication & Users
 | Endpoint | Method | Description | Auth Required |
 |----------|--------|-------------|---------------|
 | `/api/v1/auth/login` | POST | User authentication | ❌ |
@@ -93,6 +105,47 @@ Interactive API documentation is available at:
 | `/api/v1/users/me` | GET | Get current user profile | ✅ |
 | `/api/v1/health` | GET | Basic health check | ❌ |
 | `/api/v1/health/detailed` | GET | Detailed health status | ❌ |
+
+#### ⛓️ Blockchain Tracking
+| Endpoint | Method | Description | Auth Required |
+|----------|--------|-------------|---------------|
+| `/api/v1/blockchain/blocks` | GET | Get latest blocks (paginated) | ❌ |
+| `/api/v1/blockchain/blocks/:blockNumber` | GET | Get block by number | ❌ |
+| `/api/v1/blockchain/transactions/:txHash` | GET | Get transaction by hash | ❌ |
+| `/api/v1/blockchain/addresses/:address` | GET | Get address information | ❌ |
+| `/api/v1/blockchain/addresses/:address/transactions` | GET | Get address transactions | ❌ |
+| `/api/v1/blockchain/latest-block-number` | GET | Get latest block number | ❌ |
+| `/api/v1/blockchain/search` | GET | Search blocks/transactions/addresses | ❌ |
+
+#### 🏠 Address Monitoring
+| Endpoint | Method | Description | Auth Required |
+|----------|--------|-------------|---------------|
+| `/api/v1/address-tracking/track` | POST | Track an address | ✅ |
+| `/api/v1/address-tracking/tracked` | GET | Get tracked addresses | ✅ |
+| `/api/v1/address-tracking/track/:address` | GET/PUT/DELETE | Manage tracked address | ✅ |
+| `/api/v1/address-tracking/addresses/:address/stats` | GET | Get address statistics | ✅ |
+| `/api/v1/address-tracking/recent-activity` | GET | Get recent address activity | ✅ |
+
+#### 🪙 Token Analytics
+| Endpoint | Method | Description | Auth Required |
+|----------|--------|-------------|---------------|
+| `/api/v1/tokens` | GET | Get tokens (paginated, filtered) | ❌ |
+| `/api/v1/tokens/top` | GET | Get top tokens by metrics | ❌ |
+| `/api/v1/tokens/search` | GET | Search tokens | ❌ |
+| `/api/v1/tokens/:contractAddress` | GET | Get token details | ❌ |
+| `/api/v1/tokens/:contractAddress/transfers` | GET | Get token transfers | ❌ |
+| `/api/v1/tokens/:contractAddress/balances/:address` | GET | Get token balance | ❌ |
+| `/api/v1/addresses/:address/token-balances` | GET | Get all token balances | ❌ |
+
+#### 💹 nad.fun Integration
+| Endpoint | Method | Description | Auth Required |
+|----------|--------|-------------|---------------|
+| `/api/v1/nad-fun/pools` | GET | Get liquidity pools | ❌ |
+| `/api/v1/nad-fun/trending` | GET | Get trending pools | ❌ |
+| `/api/v1/nad-fun/stats` | GET | Get trading statistics | ❌ |
+| `/api/v1/nad-fun/search` | GET | Search pools | ❌ |
+| `/api/v1/nad-fun/pools/:poolAddress` | GET | Get pool details | ❌ |
+| `/api/v1/nad-fun/pools/:poolAddress/trades` | GET | Get pool trades | ❌ |
 
 ## 🏗️ Architecture
 
@@ -114,10 +167,29 @@ Interactive API documentation is available at:
 src/
 ├── api/
 │   ├── controllers/     # Request/response handling
+│   │   ├── auth-controller.ts
+│   │   ├── user-controller.ts
+│   │   ├── blockchain-controller.ts        # Monad blockchain API
+│   │   ├── address-tracking-controller.ts  # Address monitoring
+│   │   ├── token-tracking-controller.ts    # Token analytics
+│   │   └── nad-fun-controller.ts          # nad.fun integration
 │   ├── routes/         # Route definitions and middleware
+│   │   └── v1/
+│   │       ├── auth.ts
+│   │       ├── users.ts
+│   │       ├── blockchain.ts              # Blockchain routes
+│   │       ├── address-tracking.ts        # Address tracking routes
+│   │       ├── tokens.ts                  # Token routes
+│   │       └── nad-fun.ts                 # nad.fun routes
 │   └── middleware/     # Custom middleware (auth, validation, etc.)
 ├── services/
 │   ├── database/       # Database services and business logic
+│   │   ├── user-service.ts
+│   │   ├── auth-service.ts
+│   │   ├── blockchain-service.ts          # Blockchain data management
+│   │   ├── address-tracking-service.ts    # Address monitoring logic
+│   │   ├── token-tracking-service.ts      # Token analytics logic
+│   │   └── nad-fun-service.ts            # nad.fun trading logic
 │   ├── redis/         # Redis services and caching
 │   └── di/            # Dependency injection container
 ├── utils/             # Utility functions and helpers
@@ -187,6 +259,87 @@ curl -X GET http://localhost:3000/api/v1/users/me \
 # Use API key in header
 curl -X GET http://localhost:3000/api/v1/users \
   -H "X-API-Key: your-api-key-id.your-api-key"
+```
+
+## ⛓️ Blockchain Tracking Usage
+
+### 🔍 Exploring Blockchain Data
+```bash
+# Get latest blocks
+curl -X GET http://localhost:3000/api/v1/blockchain/blocks?limit=10
+
+# Get specific block with transactions
+curl -X GET http://localhost:3000/api/v1/blockchain/blocks/123456?includeTransactions=true
+
+# Get transaction details
+curl -X GET http://localhost:3000/api/v1/blockchain/transactions/0x1234...abcd
+
+# Search for address, transaction, or block
+curl -X GET "http://localhost:3000/api/v1/blockchain/search?q=0x1234...abcd"
+```
+
+### 🏠 Address Monitoring
+```bash
+# Track an address (requires authentication)
+curl -X POST http://localhost:3000/api/v1/address-tracking/track \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "address": "0x1234567890abcdef1234567890abcdef12345678",
+    "label": "My DeFi Wallet",
+    "alerts": {
+      "incomingTransactions": true,
+      "outgoingTransactions": true,
+      "tokenTransfers": true
+    }
+  }'
+
+# Get tracked addresses
+curl -X GET http://localhost:3000/api/v1/address-tracking/tracked \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+
+# Get address statistics
+curl -X GET http://localhost:3000/api/v1/address-tracking/addresses/0x1234...abcd/stats \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+### 🪙 Token Analytics
+```bash
+# Get top tokens by volume
+curl -X GET http://localhost:3000/api/v1/tokens/top?sortBy=volume&limit=50
+
+# Search tokens
+curl -X GET "http://localhost:3000/api/v1/tokens/search?q=USDC"
+
+# Get token details
+curl -X GET http://localhost:3000/api/v1/tokens/0x1234...abcd
+
+# Get token transfers
+curl -X GET http://localhost:3000/api/v1/tokens/0x1234...abcd/transfers?limit=100
+
+# Get token balance for address
+curl -X GET http://localhost:3000/api/v1/tokens/0x1234...abcd/balances/0x5678...efgh
+
+# Get all token balances for an address
+curl -X GET http://localhost:3000/api/v1/addresses/0x1234...abcd/token-balances
+```
+
+### 💹 nad.fun Trading Data
+```bash
+# Get trending pools
+curl -X GET http://localhost:3000/api/v1/nad-fun/trending?sortBy=volume&limit=20
+
+# Get trading statistics
+curl -X GET http://localhost:3000/api/v1/nad-fun/stats?hours=24
+
+# Get pool details
+curl -X GET http://localhost:3000/api/v1/nad-fun/pools/0x1234...abcd
+
+# Get pool trades
+curl -X GET http://localhost:3000/api/v1/nad-fun/pools/0x1234...abcd/trades?limit=100
+
+# Search pools
+curl -X GET "http://localhost:3000/api/v1/nad-fun/search?q=MEME"
 ```
 
 ## 🛡️ Security Features
