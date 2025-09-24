@@ -13,6 +13,10 @@ import { log } from '../../utils/logger';
 export interface ServiceContainer {
     userService: any; // Will be properly typed when used
     authService: any; // Will be properly typed when used
+    blockchainService: any; // Blockchain service for Monad
+    addressTrackingService: any; // Address tracking service
+    tokenTrackingService: any; // Token tracking service
+    nadFunService: any; // nad.fun specific service
     cacheService: typeof cacheService;
     databaseService: ReturnType<typeof getPrismaClient>;
     redisService: ReturnType<typeof getRedisClient>;
@@ -138,6 +142,22 @@ class Container implements ServiceContainer {
         return serviceRegistry.get<any>('authService');
     }
 
+    get blockchainService(): any {
+        return serviceRegistry.get<any>('blockchainService');
+    }
+
+    get addressTrackingService(): any {
+        return serviceRegistry.get<any>('addressTrackingService');
+    }
+
+    get tokenTrackingService(): any {
+        return serviceRegistry.get<any>('tokenTrackingService');
+    }
+
+    get nadFunService(): any {
+        return serviceRegistry.get<any>('nadFunService');
+    }
+
     get cacheService(): typeof cacheService {
         return serviceRegistry.get<typeof cacheService>('cacheService');
     }
@@ -171,6 +191,10 @@ export function initializeContainer(): void {
     // Register service factories
     serviceRegistry.registerFactory('userService', serviceFactories.userService);
     serviceRegistry.registerFactory('authService', serviceFactories.authService);
+    serviceRegistry.registerFactory('blockchainService', serviceFactories.blockchainService);
+    serviceRegistry.registerFactory('addressTrackingService', serviceFactories.addressTrackingService);
+    serviceRegistry.registerFactory('tokenTrackingService', serviceFactories.tokenTrackingService);
+    serviceRegistry.registerFactory('nadFunService', serviceFactories.nadFunService);
     serviceRegistry.registerFactory('enhancedCacheService', serviceFactories.cacheService);
 
     log.info('Service container initialized', {

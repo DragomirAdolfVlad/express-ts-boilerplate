@@ -5,7 +5,10 @@
 import { BaseServiceFactory, getService } from './container';
 import { UserService } from '../database/user-service';
 import { AuthService } from '../database/auth-service';
-// import { TokenTradeService } from '../database/token-trade-service'; // Will be added later
+import { BlockchainService } from '../database/blockchain-service';
+import { AddressTrackingService } from '../database/address-tracking-service';
+import { TokenTrackingService } from '../database/token-tracking-service';
+import { NadFunService } from '../database/nad-fun-service';
 import { CacheService, enhancedCacheService } from '../redis/cache-service';
 import { getPrismaClient } from '../database/database';
 import { log } from '../../utils/logger';
@@ -35,6 +38,54 @@ export class AuthServiceFactory extends BaseServiceFactory<AuthService> {
 }
 
 /**
+ * Blockchain service factory
+ */
+export class BlockchainServiceFactory extends BaseServiceFactory<BlockchainService> {
+    create(): BlockchainService {
+        log.debug('Creating BlockchainService instance');
+        
+        const prisma = getPrismaClient();
+        return new BlockchainService(prisma);
+    }
+}
+
+/**
+ * Address tracking service factory
+ */
+export class AddressTrackingServiceFactory extends BaseServiceFactory<AddressTrackingService> {
+    create(): AddressTrackingService {
+        log.debug('Creating AddressTrackingService instance');
+        
+        const prisma = getPrismaClient();
+        return new AddressTrackingService(prisma);
+    }
+}
+
+/**
+ * Token tracking service factory
+ */
+export class TokenTrackingServiceFactory extends BaseServiceFactory<TokenTrackingService> {
+    create(): TokenTrackingService {
+        log.debug('Creating TokenTrackingService instance');
+        
+        const prisma = getPrismaClient();
+        return new TokenTrackingService(prisma);
+    }
+}
+
+/**
+ * nad.fun service factory
+ */
+export class NadFunServiceFactory extends BaseServiceFactory<NadFunService> {
+    create(): NadFunService {
+        log.debug('Creating NadFunService instance');
+        
+        const prisma = getPrismaClient();
+        return new NadFunService(prisma);
+    }
+}
+
+/**
  * Cache service factory
  */
 export class CacheServiceFactory extends BaseServiceFactory<CacheService> {
@@ -51,6 +102,10 @@ export class CacheServiceFactory extends BaseServiceFactory<CacheService> {
 export const serviceFactories = {
     userService: new UserServiceFactory(),
     authService: new AuthServiceFactory(),
+    blockchainService: new BlockchainServiceFactory(),
+    addressTrackingService: new AddressTrackingServiceFactory(),
+    tokenTrackingService: new TokenTrackingServiceFactory(),
+    nadFunService: new NadFunServiceFactory(),
     cacheService: new CacheServiceFactory()
 } as const;
 

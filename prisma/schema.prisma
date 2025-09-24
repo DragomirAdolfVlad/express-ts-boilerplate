@@ -23,8 +23,9 @@ model User {
     updatedAt DateTime @updatedAt @map("updated_at")
 
     // Relations
-    apiKeys   ApiKey[]
-    userRoles UserRole[]
+    apiKeys         ApiKey[]
+    userRoles       UserRole[]
+    trackedAddresses TrackedAddress[]
 
     @@map("users")
 }
@@ -62,4 +63,270 @@ model UserRole {
 
     @@unique([userId, role])
     @@map("user_roles")
+}
+
+// =============================================================================
+// BLOCKCHAIN TRACKING MODELS FOR MONAD BLOCKCHAIN
+// =============================================================================
+
+// Block model for storing blockchain blocks
+model Block {
+    id            String   @id @default(cuid())
+    blockNumber   BigInt   @unique @map("block_number")
+    blockHash     String   @unique @map("block_hash")
+    parentHash    String   @map("parent_hash")
+    timestamp     DateTime
+    gasLimit      BigInt   @map("gas_limit")
+    gasUsed       BigInt   @map("gas_used")
+    difficulty    String?
+    totalDifficulty String? @map("total_difficulty")
+    size          BigInt?
+    transactionCount Int   @default(0) @map("transaction_count")
+    miner         String?
+    extraData     String?  @map("extra_data")
+    baseFeePerGas BigInt?  @map("base_fee_per_gas")
+    createdAt     DateTime @default(now()) @map("created_at")
+    updatedAt     DateTime @updatedAt @map("updated_at")
+
+    // Relations
+    transactions Transaction[]
+
+    @@map("blocks")
+}
+
+// Transaction model for storing blockchain transactions
+model Transaction {
+    id              String            @id @default(cuid())
+    txHash          String            @unique @map("tx_hash")
+    blockNumber     BigInt            @map("block_number")
+    transactionIndex Int              @map("transaction_index")
+    fromAddress     String            @map("from_address")
+    toAddress       String?           @map("to_address")
+    value           String            // Store as string to handle big numbers
+    gasLimit        BigInt            @map("gas_limit")
+    gasUsed         BigInt?           @map("gas_used")
+    gasPrice        BigInt            @map("gas_price")
+    maxFeePerGas    BigInt?           @map("max_fee_per_gas")
+    maxPriorityFeePerGas BigInt?      @map("max_priority_fee_per_gas")
+    nonce           BigInt
+    status          TransactionStatus @default(PENDING)
+    contractAddress String?           @map("contract_address")
+    input           String?           // Transaction input data
+    logs            Json              @default("[]") // Event logs
+    timestamp       DateTime
+    createdAt       DateTime          @default(now()) @map("created_at")
+    updatedAt       DateTime          @updatedAt @map("updated_at")
+
+    // Relations
+    block          Block           @relation(fields: [blockNumber], references: [blockNumber])
+    tokenTransfers TokenTransfer[]
+    addresses      TransactionAddress[]
+    nadFunTrades   NadFunTrade[]
+
+    @@map("transactions")
+}
+
+// Address model for tracking addresses
+model Address {
+    id            String   @id @default(cuid())
+    address       String   @unique
+    balance       String   @default("0") // Current balance as string
+    nonce         BigInt   @default(0)
+    isContract    Boolean  @default(false) @map("is_contract")
+    contractCode  String?  @map("contract_code")
+    firstSeenAt   DateTime @map("first_seen_at")
+    lastSeenAt    DateTime @map("last_seen_at")
+    transactionCount Int   @default(0) @map("transaction_count")
+    isTracked     Boolean  @default(false) @map("is_tracked") // For user-requested tracking
+    trackingLabel String?  @map("tracking_label")
+    createdAt     DateTime @default(now()) @map("created_at")
+    updatedAt     DateTime @updatedAt @map("updated_at")
+
+    // Relations
+    transactions  TransactionAddress[]
+    tokenBalances TokenBalance[]
+    
+    // User tracking relations
+    trackedBy     TrackedAddress[]
+
+    @@map("addresses")
+}
+
+// Many-to-many relationship between transactions and addresses
+model TransactionAddress {
+    id            String        @id @default(cuid())
+    transactionId String        @map("transaction_id")
+    addressId     String        @map("address_id")
+    role          AddressRole   // FROM, TO, CONTRACT
+    value         String        @default("0")
+    createdAt     DateTime      @default(now()) @map("created_at")
+
+    // Relations
+    transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+    address     Address     @relation(fields: [addressId], references: [id], onDelete: Cascade)
+
+    @@unique([transactionId, addressId, role])
+    @@map("transaction_addresses")
+}
+
+// Token model for ERC-20 and other token standards
+model Token {
+    id            String   @id @default(cuid())
+    contractAddress String @unique @map("contract_address")
+    name          String
+    symbol        String
+    decimals      Int
+    totalSupply   String?  @map("total_supply")
+    tokenType     TokenType @default(ERC20) @map("token_type")
+    logoUrl       String?  @map("logo_url")
+    website       String?
+    description   String?
+    isVerified    Boolean  @default(false) @map("is_verified")
+    createdAt     DateTime @default(now()) @map("created_at")
+    updatedAt     DateTime @updatedAt @map("updated_at")
+
+    // Relations
+    transfers     TokenTransfer[]
+    balances      TokenBalance[]
+    nadFunPools   NadFunPool[]
+
+    @@map("tokens")
+}
+
+// Token transfer events
+model TokenTransfer {
+    id            String   @id @default(cuid())
+    transactionId String   @map("transaction_id")
+    tokenId       String   @map("token_id")
+    fromAddress   String   @map("from_address")
+    toAddress     String   @map("to_address")
+    amount        String   // Amount as string to handle big numbers
+    logIndex      Int      @map("log_index")
+    createdAt     DateTime @default(now()) @map("created_at")
+
+    // Relations
+    transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+    token       Token       @relation(fields: [tokenId], references: [id], onDelete: Cascade)
+
+    @@unique([transactionId, logIndex])
+    @@map("token_transfers")
+}
+
+// Token balances for addresses
+model TokenBalance {
+    id        String   @id @default(cuid())
+    addressId String   @map("address_id")
+    tokenId   String   @map("token_id")
+    balance   String   @default("0")
+    updatedAt DateTime @updatedAt @map("updated_at")
+
+    // Relations
+    address Address @relation(fields: [addressId], references: [id], onDelete: Cascade)
+    token   Token   @relation(fields: [tokenId], references: [id], onDelete: Cascade)
+
+    @@unique([addressId, tokenId])
+    @@map("token_balances")
+}
+
+// =============================================================================
+// NAD.FUN SPECIFIC MODELS
+// =============================================================================
+
+// nad.fun liquidity pools and trading data
+model NadFunPool {
+    id            String         @id @default(cuid())
+    tokenId       String         @map("token_id")
+    poolAddress   String         @unique @map("pool_address")
+    reserveToken  String         @map("reserve_token") // Usually ETH/MON
+    reserveAmount String         @map("reserve_amount")
+    tokenAmount   String         @map("token_amount")
+    price         String         @default("0") // Current token price
+    marketCap     String         @default("0") @map("market_cap")
+    volume24h     String         @default("0") @map("volume_24h")
+    trades24h     Int            @default(0) @map("trades_24h")
+    status        PoolStatus     @default(ACTIVE)
+    createdAt     DateTime       @default(now()) @map("created_at")
+    updatedAt     DateTime       @updatedAt @map("updated_at")
+
+    // Relations
+    token  Token       @relation(fields: [tokenId], references: [id], onDelete: Cascade)
+    trades NadFunTrade[]
+
+    @@map("nad_fun_pools")
+}
+
+// nad.fun trade events
+model NadFunTrade {
+    id            String        @id @default(cuid())
+    poolId        String        @map("pool_id")
+    transactionId String        @map("transaction_id")
+    trader        String        // Trader address
+    tradeType     TradeType     @map("trade_type") // BUY, SELL
+    tokenAmount   String        @map("token_amount")
+    ethAmount     String        @map("eth_amount")
+    price         String        // Price at time of trade
+    slippage      String?       // Slippage percentage
+    timestamp     DateTime
+    createdAt     DateTime      @default(now()) @map("created_at")
+
+    // Relations
+    pool        NadFunPool  @relation(fields: [poolId], references: [id], onDelete: Cascade)
+    transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+
+    @@map("nad_fun_trades")
+}
+
+// User tracked addresses for notifications
+model TrackedAddress {
+    id        String   @id @default(cuid())
+    userId    String   @map("user_id")
+    addressId String   @map("address_id")
+    label     String?  // User-defined label
+    alerts    Json     @default("{}") // Alert preferences
+    createdAt DateTime @default(now()) @map("created_at")
+
+    // Relations
+    user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+    address Address @relation(fields: [addressId], references: [id], onDelete: Cascade)
+
+    @@unique([userId, addressId])
+    @@map("tracked_addresses")
+}
+
+// =============================================================================
+// ENUMS
+// =============================================================================
+
+enum TransactionStatus {
+    PENDING
+    SUCCESS
+    FAILED
+    REPLACED
+}
+
+enum AddressRole {
+    FROM
+    TO
+    CONTRACT
+}
+
+enum TokenType {
+    ERC20
+    ERC721
+    ERC1155
+    NATIVE
+    OTHER
+}
+
+enum PoolStatus {
+    ACTIVE
+    INACTIVE
+    MIGRATED
+    DEPRECATED
+}
+
+enum TradeType {
+    BUY
+    SELL
+    SWAP
 }
