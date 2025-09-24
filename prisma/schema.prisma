@@ -63,3 +63,260 @@ model UserRole {
     @@unique([userId, role])
     @@map("user_roles")
 }
+
+// =============================================================================
+// BLOCKCHAIN TRACKING MODELS FOR MONAD BLOCKCHAIN
+// =============================================================================
+
+// Monad blockchain blocks
+model Block {
+    id            String   @id @default(cuid())
+    blockNumber   BigInt   @unique @map("block_number")
+    blockHash     String   @unique @map("block_hash")
+    parentHash    String   @map("parent_hash")
+    timestamp     DateTime
+    gasLimit      BigInt   @map("gas_limit")
+    gasUsed       BigInt   @map("gas_used")
+    baseFeePerGas BigInt?  @map("base_fee_per_gas")
+    difficulty    BigInt?
+    totalDifficulty BigInt? @map("total_difficulty")
+    miner         String?
+    extraData     String?  @map("extra_data")
+    size          BigInt?
+    transactionCount Int   @map("transaction_count")
+    createdAt     DateTime @default(now()) @map("created_at")
+    updatedAt     DateTime @updatedAt @map("updated_at")
+
+    // Relations
+    transactions Transaction[]
+
+    @@index([blockNumber])
+    @@index([timestamp])
+    @@index([miner])
+    @@map("blocks")
+}
+
+// Blockchain transactions
+model Transaction {
+    id              String            @id @default(cuid())
+    txHash          String            @unique @map("tx_hash")
+    blockNumber     BigInt            @map("block_number")
+    blockHash       String            @map("block_hash")
+    transactionIndex Int              @map("transaction_index")
+    fromAddress     String            @map("from_address")
+    toAddress       String?           @map("to_address")
+    value           Decimal           @db.Decimal(78, 0) // Wei amount as string
+    gasPrice        BigInt            @map("gas_price")
+    gasLimit        BigInt            @map("gas_limit")
+    gasUsed         BigInt?           @map("gas_used")
+    nonce           BigInt
+    data            String?           // Input data
+    status          TransactionStatus @default(PENDING)
+    timestamp       DateTime
+    createdAt       DateTime          @default(now()) @map("created_at")
+    updatedAt       DateTime          @updatedAt @map("updated_at")
+
+    // Relations
+    block Block @relation(fields: [blockHash], references: [blockHash])
+    logs  TransactionLog[]
+    nadFunEvents NadFunEvent[]
+
+    @@index([txHash])
+    @@index([blockNumber])
+    @@index([fromAddress])
+    @@index([toAddress])
+    @@index([timestamp])
+    @@index([status])
+    @@map("transactions")
+}
+
+// Transaction logs for event parsing
+model TransactionLog {
+    id              String   @id @default(cuid())
+    txHash          String   @map("tx_hash")
+    logIndex        Int      @map("log_index")
+    address         String   // Contract address that emitted the log
+    topics          Json     // Array of topics
+    data            String   // Log data
+    blockNumber     BigInt   @map("block_number")
+    blockHash       String   @map("block_hash")
+    transactionIndex Int     @map("transaction_index")
+    createdAt       DateTime @default(now()) @map("created_at")
+
+    // Relations
+    transaction Transaction @relation(fields: [txHash], references: [txHash])
+
+    @@unique([txHash, logIndex])
+    @@index([address])
+    @@index([blockNumber])
+    @@map("transaction_logs")
+}
+
+// Addresses being monitored
+model MonitoredAddress {
+    id          String        @id @default(cuid())
+    address     String        @unique
+    label       String?       // Optional human-readable label
+    addressType AddressType   @default(EOA) @map("address_type")
+    isActive    Boolean       @default(true) @map("is_active")
+    lastBalance Decimal?      @map("last_balance") @db.Decimal(78, 0)
+    lastChecked DateTime?     @map("last_checked")
+    createdAt   DateTime      @default(now()) @map("created_at")
+    updatedAt   DateTime      @updatedAt @map("updated_at")
+
+    // Relations
+    balanceHistory AddressBalance[]
+    nadFunActivities NadFunEvent[]
+
+    @@index([address])
+    @@index([addressType])
+    @@index([isActive])
+    @@map("monitored_addresses")
+}
+
+// Historical balance tracking
+model AddressBalance {
+    id         String   @id @default(cuid())
+    address    String
+    balance    Decimal  @db.Decimal(78, 0) // Wei amount
+    blockNumber BigInt  @map("block_number")
+    timestamp  DateTime
+    createdAt  DateTime @default(now()) @map("created_at")
+
+    // Relations
+    monitoredAddress MonitoredAddress @relation(fields: [address], references: [address])
+
+    @@unique([address, blockNumber])
+    @@index([address])
+    @@index([blockNumber])
+    @@index([timestamp])
+    @@map("address_balances")
+}
+
+// =============================================================================
+// NAD.FUN PROGRAM SPECIFIC MODELS
+// =============================================================================
+
+// nad.fun program events and activities  
+model NadFunEvent {
+    id              String          @id @default(cuid())
+    txHash          String          @map("tx_hash")
+    eventType       NadFunEventType @map("event_type")
+    programAddress  String          @map("program_address")
+    userAddress     String          @map("user_address")
+    tokenAddress    String?         @map("token_address")
+    amount          Decimal?        @db.Decimal(78, 0)
+    price           Decimal?        @db.Decimal(78, 18)
+    metadata        Json?           // Additional event-specific data
+    blockNumber     BigInt          @map("block_number")
+    logIndex        Int             @map("log_index")
+    timestamp       DateTime
+    createdAt       DateTime        @default(now()) @map("created_at")
+
+    // Relations
+    transaction Transaction @relation(fields: [txHash], references: [txHash])
+    monitoredAddress MonitoredAddress? @relation(fields: [userAddress], references: [address])
+
+    @@unique([txHash, logIndex])
+    @@index([eventType])
+    @@index([programAddress])
+    @@index([userAddress])
+    @@index([tokenAddress])
+    @@index([timestamp])
+    @@map("nad_fun_events")
+}
+
+// nad.fun token creation and metadata
+model NadFunToken {
+    id            String     @id @default(cuid())
+    tokenAddress  String     @unique @map("token_address")
+    name          String
+    symbol        String
+    totalSupply   Decimal    @map("total_supply") @db.Decimal(78, 0)
+    creator       String     // Creator address
+    creationTx    String     @map("creation_tx")
+    currentPrice  Decimal?   @map("current_price") @db.Decimal(78, 18)
+    marketCap     Decimal?   @map("market_cap") @db.Decimal(78, 18)
+    volume24h     Decimal?   @map("volume_24h") @db.Decimal(78, 18)
+    holders       Int        @default(0)
+    isActive      Boolean    @default(true) @map("is_active")
+    metadata      Json?      // Additional token metadata
+    createdAt     DateTime   @default(now()) @map("created_at")
+    updatedAt     DateTime   @updatedAt @map("updated_at")
+
+    // Relations
+    priceHistory TokenPriceHistory[]
+
+    @@index([tokenAddress])
+    @@index([creator])
+    @@index([currentPrice])
+    @@index([marketCap])
+    @@index([isActive])
+    @@map("nad_fun_tokens")
+}
+
+// Price history for nad.fun tokens
+model TokenPriceHistory {
+    id           String   @id @default(cuid())
+    tokenAddress String   @map("token_address")
+    price        Decimal  @db.Decimal(78, 18)
+    volume       Decimal  @db.Decimal(78, 18)
+    marketCap    Decimal? @map("market_cap") @db.Decimal(78, 18)
+    blockNumber  BigInt   @map("block_number")
+    timestamp    DateTime
+    createdAt    DateTime @default(now()) @map("created_at")
+
+    // Relations
+    token NadFunToken @relation(fields: [tokenAddress], references: [tokenAddress])
+
+    @@unique([tokenAddress, blockNumber])
+    @@index([tokenAddress])
+    @@index([timestamp])
+    @@index([price])
+    @@map("token_price_history")
+}
+
+// System sync status to track blockchain synchronization
+model SyncStatus {
+    id              String   @id @default(cuid())
+    component       String   @unique // "blocks", "transactions", "nad_fun_events", etc.
+    lastSyncedBlock BigInt   @map("last_synced_block")
+    lastSyncedHash  String?  @map("last_synced_hash")
+    isHealthy       Boolean  @default(true) @map("is_healthy")
+    errorMessage    String?  @map("error_message")
+    lastSyncAt      DateTime @map("last_sync_at")
+    createdAt       DateTime @default(now()) @map("created_at")
+    updatedAt       DateTime @updatedAt @map("updated_at")
+
+    @@index([component])
+    @@index([lastSyncedBlock])
+    @@index([isHealthy])
+    @@map("sync_status")
+}
+
+// =============================================================================
+// ENUMS
+// =============================================================================
+
+enum TransactionStatus {
+    PENDING
+    SUCCESS
+    FAILED
+    DROPPED
+}
+
+enum AddressType {
+    EOA         // Externally Owned Account
+    CONTRACT    // Smart Contract
+    NAD_FUN     // nad.fun Program Address
+}
+
+enum NadFunEventType {
+    TOKEN_CREATED
+    TOKEN_BOUGHT
+    TOKEN_SOLD
+    LIQUIDITY_ADDED
+    LIQUIDITY_REMOVED
+    PRICE_UPDATED
+    METADATA_UPDATED
+}

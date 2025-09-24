@@ -16,6 +16,9 @@ export interface ServiceContainer {
     cacheService: typeof cacheService;
     databaseService: ReturnType<typeof getPrismaClient>;
     redisService: ReturnType<typeof getRedisClient>;
+    monadClientService: any; // MonadClientService
+    blockchainTrackerService: any; // BlockchainTrackerService
+    nadFunService: any; // NadFunService
 }
 
 /**
@@ -149,6 +152,18 @@ class Container implements ServiceContainer {
     get redisService(): ReturnType<typeof getRedisClient> {
         return serviceRegistry.get<ReturnType<typeof getRedisClient>>('redisService');
     }
+
+    get monadClientService(): any {
+        return serviceRegistry.get<any>('monadClientService');
+    }
+
+    get blockchainTrackerService(): any {
+        return serviceRegistry.get<any>('blockchainTrackerService');
+    }
+
+    get nadFunService(): any {
+        return serviceRegistry.get<any>('nadFunService');
+    }
 }
 
 // Global container instance
@@ -172,6 +187,11 @@ export function initializeContainer(): void {
     serviceRegistry.registerFactory('userService', serviceFactories.userService);
     serviceRegistry.registerFactory('authService', serviceFactories.authService);
     serviceRegistry.registerFactory('enhancedCacheService', serviceFactories.cacheService);
+    
+    // Register blockchain service factories
+    serviceRegistry.registerFactory('monadClientService', serviceFactories.monadClientService);
+    serviceRegistry.registerFactory('blockchainTrackerService', serviceFactories.blockchainTrackerService);
+    serviceRegistry.registerFactory('nadFunService', serviceFactories.nadFunService);
 
     log.info('Service container initialized', {
         services: serviceRegistry.getServiceNames()

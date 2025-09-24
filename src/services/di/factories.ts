@@ -5,7 +5,10 @@
 import { BaseServiceFactory, getService } from './container';
 import { UserService } from '../database/user-service';
 import { AuthService } from '../database/auth-service';
+import { BlockchainTrackerService } from '../database/blockchain-tracker-service';
 import { CacheService, enhancedCacheService } from '../redis/cache-service';
+import { MonadClientService } from '../blockchain/monad-client';
+import { NadFunService } from '../blockchain/nad-fun-service';
 import { getPrismaClient } from '../database/database';
 import { log } from '../../utils/logger';
 
@@ -45,12 +48,52 @@ export class CacheServiceFactory extends BaseServiceFactory<CacheService> {
 }
 
 /**
+ * Monad blockchain client service factory
+ */
+export class MonadClientServiceFactory extends BaseServiceFactory<MonadClientService> {
+    create(): MonadClientService {
+        log.debug('Creating MonadClientService instance');
+        
+        return new MonadClientService();
+    }
+}
+
+/**
+ * Blockchain tracker service factory
+ */
+export class BlockchainTrackerServiceFactory extends BaseServiceFactory<BlockchainTrackerService> {
+    create(): BlockchainTrackerService {
+        log.debug('Creating BlockchainTrackerService instance');
+        
+        const prisma = getPrismaClient();
+        const monadClient = getService<MonadClientService>('monadClientService');
+        return new BlockchainTrackerService(prisma, monadClient);
+    }
+}
+
+/**
+ * nad.fun service factory
+ */
+export class NadFunServiceFactory extends BaseServiceFactory<NadFunService> {
+    create(): NadFunService {
+        log.debug('Creating NadFunService instance');
+        
+        const prisma = getPrismaClient();
+        const monadClient = getService<MonadClientService>('monadClientService');
+        return new NadFunService(prisma, monadClient);
+    }
+}
+
+/**
  * Factory registry for easy access
  */
 export const serviceFactories = {
     userService: new UserServiceFactory(),
     authService: new AuthServiceFactory(),
-    cacheService: new CacheServiceFactory()
+    cacheService: new CacheServiceFactory(),
+    monadClientService: new MonadClientServiceFactory(),
+    blockchainTrackerService: new BlockchainTrackerServiceFactory(),
+    nadFunService: new NadFunServiceFactory()
 } as const;
 
 /**
