@@ -6,6 +6,10 @@ import { Router } from 'express';
 import userRoutes from './users';
 import authRoutes from './auth';
 import healthRoutes from './health';
+import blockchainRoutes from './blockchain';
+import addressTrackingRoutes from './address-tracking';
+import tokenRoutes from './tokens';
+import nadFunRoutes from './nad-fun';
 import { log } from '../../../utils/logger';
 
 const router = Router();
@@ -14,6 +18,10 @@ const router = Router();
 router.use('/users', userRoutes);
 router.use('/auth', authRoutes);
 router.use('/health', healthRoutes);
+router.use('/blockchain', blockchainRoutes);
+router.use('/address-tracking', addressTrackingRoutes);
+router.use('/tokens', tokenRoutes);
+router.use('/nad-fun', nadFunRoutes);
 
 // Import health controller for direct routes
 import { HealthController } from '../../controllers/health-controller';
@@ -46,6 +54,10 @@ router.get('/', (req, res) => {
             users: '/api/v1/users',
             auth: '/api/v1/auth',
             health: '/api/v1/health',
+            blockchain: '/api/v1/blockchain',
+            addressTracking: '/api/v1/address-tracking',
+            tokens: '/api/v1/tokens',
+            nadFun: '/api/v1/nad-fun',
             metrics: '/api/v1/metrics',
             info: '/api/v1/info',
             docs: '/api-docs'
@@ -59,7 +71,12 @@ router.get('/', (req, res) => {
             'Security Headers',
             'Health Checks',
             'Metrics Collection',
-            'OpenAPI Documentation'
+            'OpenAPI Documentation',
+            'Monad Blockchain Tracking',
+            'Address Monitoring & Alerts',
+            'Token & Transfer Tracking',
+            'nad.fun Trading Integration',
+            'Real-time Analytics'
         ]
     };
 
@@ -100,6 +117,7 @@ router.use('*', (req, res) => {
                 path: req.originalUrl,
                 availableEndpoints: [
                     'GET /api/v1/',
+                    // User endpoints
                     'GET /api/v1/users',
                     'POST /api/v1/users',
                     'GET /api/v1/users/me',
@@ -107,6 +125,7 @@ router.use('*', (req, res) => {
                     'GET /api/v1/users/:id',
                     'PUT /api/v1/users/:id',
                     'DELETE /api/v1/users/:id',
+                    // Auth endpoints
                     'POST /api/v1/auth/login',
                     'POST /api/v1/auth/refresh',
                     'POST /api/v1/auth/logout',
@@ -114,12 +133,47 @@ router.use('*', (req, res) => {
                     'POST /api/v1/auth/verify',
                     'POST /api/v1/auth/api-keys',
                     'DELETE /api/v1/auth/api-keys/:keyId',
+                    // Health endpoints
                     'GET /api/v1/health',
                     'GET /api/v1/health/detailed',
                     'GET /api/v1/health/ready',
                     'GET /api/v1/health/live',
                     'GET /api/v1/metrics',
-                    'GET /api/v1/info'
+                    'GET /api/v1/info',
+                    // Blockchain endpoints
+                    'GET /api/v1/blockchain/blocks',
+                    'GET /api/v1/blockchain/blocks/:blockNumber',
+                    'GET /api/v1/blockchain/transactions/:txHash',
+                    'GET /api/v1/blockchain/addresses/:address',
+                    'GET /api/v1/blockchain/addresses/:address/transactions',
+                    'GET /api/v1/blockchain/latest-block-number',
+                    'GET /api/v1/blockchain/search',
+                    // Address tracking endpoints
+                    'POST /api/v1/address-tracking/track',
+                    'GET /api/v1/address-tracking/tracked',
+                    'GET /api/v1/address-tracking/track/:address',
+                    'PUT /api/v1/address-tracking/track/:address',
+                    'DELETE /api/v1/address-tracking/track/:address',
+                    'GET /api/v1/address-tracking/addresses/:address/stats',
+                    'GET /api/v1/address-tracking/recent-activity',
+                    // Token endpoints
+                    'GET /api/v1/tokens',
+                    'GET /api/v1/tokens/top',
+                    'GET /api/v1/tokens/search',
+                    'POST /api/v1/tokens',
+                    'GET /api/v1/tokens/:contractAddress',
+                    'GET /api/v1/tokens/:contractAddress/transfers',
+                    'GET /api/v1/tokens/:contractAddress/balances/:address',
+                    'GET /api/v1/addresses/:address/token-balances',
+                    // nad.fun endpoints
+                    'GET /api/v1/nad-fun/pools',
+                    'GET /api/v1/nad-fun/trending',
+                    'GET /api/v1/nad-fun/stats',
+                    'GET /api/v1/nad-fun/search',
+                    'POST /api/v1/nad-fun/pools',
+                    'POST /api/v1/nad-fun/trades',
+                    'GET /api/v1/nad-fun/pools/:poolAddress',
+                    'GET /api/v1/nad-fun/pools/:poolAddress/trades'
                 ]
             }
         },
