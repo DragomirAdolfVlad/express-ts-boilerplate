@@ -19,6 +19,8 @@ export interface ServiceContainer {
     monadClientService: any; // MonadClientService
     blockchainTrackerService: any; // BlockchainTrackerService
     nadFunService: any; // NadFunService
+    blockchainSyncService: any; // BlockchainSyncService
+    blockchainWebSocketService: any; // BlockchainWebSocketService
 }
 
 /**
@@ -164,6 +166,14 @@ class Container implements ServiceContainer {
     get nadFunService(): any {
         return serviceRegistry.get<any>('nadFunService');
     }
+
+    get blockchainSyncService(): any {
+        return serviceRegistry.get<any>('blockchainSyncService');
+    }
+
+    get blockchainWebSocketService(): any {
+        return serviceRegistry.get<any>('blockchainWebSocketService');
+    }
 }
 
 // Global container instance
@@ -192,6 +202,8 @@ export function initializeContainer(): void {
     serviceRegistry.registerFactory('monadClientService', serviceFactories.monadClientService);
     serviceRegistry.registerFactory('blockchainTrackerService', serviceFactories.blockchainTrackerService);
     serviceRegistry.registerFactory('nadFunService', serviceFactories.nadFunService);
+    serviceRegistry.registerFactory('blockchainSyncService', serviceFactories.blockchainSyncService);
+    serviceRegistry.registerFactory('blockchainWebSocketService', serviceFactories.blockchainWebSocketService);
 
     log.info('Service container initialized', {
         services: serviceRegistry.getServiceNames()

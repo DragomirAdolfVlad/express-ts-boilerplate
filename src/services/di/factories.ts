@@ -9,6 +9,8 @@ import { BlockchainTrackerService } from '../database/blockchain-tracker-service
 import { CacheService, enhancedCacheService } from '../redis/cache-service';
 import { MonadClientService } from '../blockchain/monad-client';
 import { NadFunService } from '../blockchain/nad-fun-service';
+import { BlockchainSyncService } from '../blockchain/blockchain-sync-service';
+import { BlockchainWebSocketService } from '../websocket/blockchain-websocket-service';
 import { getPrismaClient } from '../database/database';
 import { log } from '../../utils/logger';
 
@@ -85,6 +87,37 @@ export class NadFunServiceFactory extends BaseServiceFactory<NadFunService> {
 }
 
 /**
+ * Blockchain sync service factory
+ */
+export class BlockchainSyncServiceFactory extends BaseServiceFactory<BlockchainSyncService> {
+    create(): BlockchainSyncService {      
+        log.debug('Creating BlockchainSyncService instance');
+        
+        const monadClient = getService<MonadClientService>('monadClientService');
+        const blockchainTracker = getService<BlockchainTrackerService>('blockchainTrackerService');
+        const nadFunService = getService<NadFunService>('nadFunService');
+        
+        return new BlockchainSyncService(
+            undefined, // Use default config
+            monadClient,
+            blockchainTracker,
+            nadFunService
+        );
+    }
+}
+
+/**
+ * Blockchain WebSocket service factory
+ */
+export class BlockchainWebSocketServiceFactory extends BaseServiceFactory<BlockchainWebSocketService> {
+    create(): BlockchainWebSocketService {
+        log.debug('Creating BlockchainWebSocketService instance');
+        
+        return new BlockchainWebSocketService();
+    }
+}
+
+/**
  * Factory registry for easy access
  */
 export const serviceFactories = {
@@ -93,7 +126,9 @@ export const serviceFactories = {
     cacheService: new CacheServiceFactory(),
     monadClientService: new MonadClientServiceFactory(),
     blockchainTrackerService: new BlockchainTrackerServiceFactory(),
-    nadFunService: new NadFunServiceFactory()
+    nadFunService: new NadFunServiceFactory(),
+    blockchainSyncService: new BlockchainSyncServiceFactory(),
+    blockchainWebSocketService: new BlockchainWebSocketServiceFactory()
 } as const;
 
 /**

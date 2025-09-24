@@ -6,6 +6,8 @@ import { Router } from 'express';
 import userRoutes from './users';
 import authRoutes from './auth';
 import healthRoutes from './health';
+import blockchainRoutes from './blockchain';
+import nadFunRoutes from './nad-fun';
 import { log } from '../../../utils/logger';
 
 const router = Router();
@@ -14,6 +16,8 @@ const router = Router();
 router.use('/users', userRoutes);
 router.use('/auth', authRoutes);
 router.use('/health', healthRoutes);
+router.use('/blockchain', blockchainRoutes);
+router.use('/nad-fun', nadFunRoutes);
 
 // Import health controller for direct routes
 import { HealthController } from '../../controllers/health-controller';
@@ -48,6 +52,8 @@ router.get('/', (req, res) => {
             health: '/api/v1/health',
             metrics: '/api/v1/metrics',
             info: '/api/v1/info',
+            blockchain: '/api/v1/blockchain',
+            nadFun: '/api/v1/nad-fun',
             docs: '/api-docs'
         },
         features: [
@@ -59,7 +65,10 @@ router.get('/', (req, res) => {
             'Security Headers',
             'Health Checks',
             'Metrics Collection',
-            'OpenAPI Documentation'
+            'OpenAPI Documentation',
+            'Blockchain Data Tracking',
+            'Real-time WebSocket Updates',
+            'nad.fun Program Analytics'
         ]
     };
 
@@ -119,7 +128,21 @@ router.use('*', (req, res) => {
                     'GET /api/v1/health/ready',
                     'GET /api/v1/health/live',
                     'GET /api/v1/metrics',
-                    'GET /api/v1/info'
+                    'GET /api/v1/info',
+                    'GET /api/v1/blockchain/blocks',
+                    'GET /api/v1/blockchain/blocks/:blockNumber',
+                    'GET /api/v1/blockchain/transactions',
+                    'GET /api/v1/blockchain/transactions/:txHash',
+                    'GET /api/v1/blockchain/addresses/:address',
+                    'POST /api/v1/blockchain/addresses/:address/monitor',
+                    'GET /api/v1/blockchain/sync/status',
+                    'GET /api/v1/nad-fun/tokens',
+                    'GET /api/v1/nad-fun/tokens/:tokenAddress',
+                    'GET /api/v1/nad-fun/tokens/:tokenAddress/price-history',
+                    'GET /api/v1/nad-fun/tokens/:tokenAddress/events',
+                    'GET /api/v1/nad-fun/events',
+                    'GET /api/v1/nad-fun/analytics/overview',
+                    'GET /api/v1/nad-fun/users/:userAddress/activity'
                 ]
             }
         },
