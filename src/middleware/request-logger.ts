@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
-import { v4 as uuidv4 } from 'uuid';
 import { createRequestLogger, LogContext } from '../utils/logger';
+import { randomUUID } from 'crypto';
 
 /**
  * Request/response logging middleware with correlation IDs
@@ -32,8 +32,8 @@ export interface RequestLogContext extends LogContext {
  */
 export function correlationIdMiddleware(req: Request, res: Response, next: NextFunction): void {
     // Get correlation ID from header or generate new one
-    const correlationId = (req.headers['x-correlation-id'] as string) || uuidv4();
-    const requestId = (req.headers['x-request-id'] as string) || uuidv4();
+    const correlationId = (req.headers['x-correlation-id'] as string) || randomUUID();
+    const requestId = (req.headers['x-request-id'] as string) || randomUUID();
 
     // Set correlation ID on request
     req.correlationId = correlationId;

@@ -10,11 +10,13 @@ import { log } from './utils/logger';
 validateConfig();
 
 // Start the server
-try {
-    startServer();
-} catch (error) {
-    log.error('Failed to start server', {
-        error: error instanceof Error ? error.message : String(error)
-    });
-    process.exit(1);
-}
+(async () => {
+    try {
+        await startServer();
+    } catch (error) {
+        log.error('Failed to start server', {
+            error: error instanceof Error ? error.message : String(error)
+        });
+        process.exit(1);
+    }
+})();

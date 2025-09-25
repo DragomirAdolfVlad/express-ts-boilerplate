@@ -10,6 +10,7 @@ import { errorHandler } from './middleware/error-handler';
 import { correlationIdMiddleware, requestLoggingMiddleware } from './middleware/request-logger';
 import { config } from './config/loader';
 import { log } from './utils/logger';
+import { trackerService } from './services/tracker';
 
 /**
  * Create Express application
@@ -70,12 +71,13 @@ export function createApp(): Application {
 /**
  * Start the server
  */
-export function startServer(): void {
+export async function startServer(): Promise<void> {
     const app = createApp();
     const port = config.server.port;
     const host = config.server.host;
 
-    app.listen(port, host, () => {
+    // Start the HTTP server
+    const server = app.listen(port, host, () => {
         log.info('Server started successfully', {
             port,
             host,
@@ -87,6 +89,43 @@ export function startServer(): void {
             }
         });
     });
+
+    // Initialize the tracker service
+    try {
+        await trackerService.initialize();
+        log.info('Tracker service initialized successfully');
+    } catch (error) {
+        log.error('Failed to initialize tracker service', {
+            error: error instanceof Error ? error.message : String(error)
+        });
+        // Don't exit - the API should still work even if tracker fails
+    }
+
+    // Graceful shutdown handling
+    const gracefulShutdown = async (signal: string) => {
+        log.info(`Received ${signal}, shutting down gracefully`);
+        
+        // Close HTTP server
+        server.close(() => {
+            log.info('HTTP server closed');
+        });
+
+        // Shutdown tracker service
+        try {
+            await trackerService.shutdown();
+            log.info('Tracker service shutdown complete');
+        } catch (error) {
+            log.error('Error during tracker shutdown:', {
+                error: error instanceof Error ? error.message : String(error)
+            });
+        }
+
+        process.exit(0);
+    };
+
+    // Listen for shutdown signals
+    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 }
 
 // Start server if this file is run directly

@@ -6,6 +6,7 @@ import { Router } from 'express';
 import userRoutes from './users';
 import authRoutes from './auth';
 import healthRoutes from './health';
+import trackerRoutes from './tracker';
 import { log } from '../../../utils/logger';
 
 const router = Router();
@@ -14,6 +15,7 @@ const router = Router();
 router.use('/users', userRoutes);
 router.use('/auth', authRoutes);
 router.use('/health', healthRoutes);
+router.use('/tracker', trackerRoutes);
 
 // Import health controller for direct routes
 import { HealthController } from '../../controllers/health-controller';
