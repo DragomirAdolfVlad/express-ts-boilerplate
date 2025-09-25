@@ -10,7 +10,7 @@ import { errorHandler } from './middleware/error-handler';
 import { correlationIdMiddleware, requestLoggingMiddleware } from './middleware/request-logger';
 import { config } from './config/loader';
 import { log } from './utils/logger';
-import { trackerService } from './services/tracker';
+import { BlockchainTrackingService } from './application/services/blockchain-tracking.service';
 
 /**
  * Create Express application
@@ -90,12 +90,33 @@ export async function startServer(): Promise<void> {
         });
     });
 
-    // Initialize the tracker service
+    // Initialize the blockchain tracking service
+    const trackingService = new BlockchainTrackingService({
+        monad: {
+            wsUrl: process.env['MONAD_WS_URL']!,
+            httpUrl: process.env['MONAD_HTTP_URL']!,
+            contractAddress: process.env['CONTRACT_ADDRESS']!,
+            reconnection: {
+                maxAttempts: Number(process.env['MAX_RECONNECT_ATTEMPTS']) || 10,
+                baseDelay: Number(process.env['RECONNECT_BASE_DELAY']) || 1000,
+                backoffFactor: Number(process.env['RECONNECT_BACKOFF_FACTOR']) || 2
+            }
+        },
+        redis: {
+            url: process.env['REDIS_URL']!,
+            channel: process.env['REDIS_CHANNEL'] || 'nadfun:live'
+        },
+        features: {
+            enablePersistence: false, // Enable when PostgreSQL repository is implemented
+            enablePublishing: true
+        }
+    });
+
     try {
-        await trackerService.initialize();
-        log.info('Tracker service initialized successfully');
+        await trackingService.initialize();
+        log.info('Blockchain tracking service initialized successfully');
     } catch (error) {
-        log.error('Failed to initialize tracker service', {
+        log.error('Failed to initialize blockchain tracking service', {
             error: error instanceof Error ? error.message : String(error)
         });
         // Don't exit - the API should still work even if tracker fails
@@ -110,12 +131,12 @@ export async function startServer(): Promise<void> {
             log.info('HTTP server closed');
         });
 
-        // Shutdown tracker service
+        // Shutdown blockchain tracking service
         try {
-            await trackerService.shutdown();
-            log.info('Tracker service shutdown complete');
+            await trackingService.shutdown();
+            log.info('Blockchain tracking service shutdown complete');
         } catch (error) {
-            log.error('Error during tracker shutdown:', {
+            log.error('Error during tracking service shutdown:', {
                 error: error instanceof Error ? error.message : String(error)
             });
         }
