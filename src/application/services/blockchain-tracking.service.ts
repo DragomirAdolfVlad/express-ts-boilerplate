@@ -10,7 +10,9 @@ import { TrackerConfiguration } from '../interfaces/blockchain-tracker.interface
 
 import { TrackerFactory } from '../../infrastructure/factories/tracker.factory';
 import { RedisEventPublisherAdapter } from '../../infrastructure/messaging/redis-event-publisher.adapter';
-import { InMemoryEventRepository } from '../../infrastructure/database/in-memory-event.repository';
+import { MonadTokenRepositoryImpl } from '../../infrastructure/database/monad-token.repository';
+import { DatabaseCleanupService } from './database-cleanup.service';
+import { PrismaClient } from '@prisma/client';
 
 export interface BlockchainTrackingConfiguration {
   readonly monad: {
@@ -35,16 +37,24 @@ export interface BlockchainTrackingConfiguration {
 
 export class BlockchainTrackingService {
   private orchestrator: TrackerOrchestratorService | null = null;
+  private prisma: PrismaClient;
+  private tokenRepository: MonadTokenRepositoryImpl;
+  private cleanupService: DatabaseCleanupService;
 
-  constructor(private readonly config: BlockchainTrackingConfiguration) {}
+  constructor(private readonly config: BlockchainTrackingConfiguration) {
+    // Initialize database connection
+    this.prisma = new PrismaClient();
+    this.tokenRepository = new MonadTokenRepositoryImpl(this.prisma);
+    this.cleanupService = new DatabaseCleanupService(this.tokenRepository, true);
+  }
 
   async initialize(): Promise<void> {
     if (this.orchestrator) {
       throw new Error('Blockchain tracking service is already initialized');
     }
 
-    // Create dependencies
-    const trackerFactory = new TrackerFactory();
+    // Create dependencies with repository injection
+    const trackerFactory = new TrackerFactory(this.tokenRepository);
     
     const eventPublisher = new RedisEventPublisherAdapter(
       this.config.redis.url,
@@ -54,7 +64,8 @@ export class BlockchainTrackingService {
       }
     );
     
-    const eventRepository = new InMemoryEventRepository();
+    // Use the real PostgreSQL repository (cast to match interface)
+    const eventRepository = this.tokenRepository as any;
 
     // Configure trackers
     const trackers = new Map<string, TrackerConfiguration>();
@@ -81,6 +92,10 @@ export class BlockchainTrackingService {
     );
 
     await this.orchestrator.start();
+
+    // Start the database cleanup service
+    this.cleanupService.start();
+    console.log('🧹 Database cleanup service started');
   }
 
   async shutdown(): Promise<void> {
@@ -88,6 +103,11 @@ export class BlockchainTrackingService {
       await this.orchestrator.stop();
       this.orchestrator = null;
     }
+
+    // Stop cleanup service and disconnect database
+    this.cleanupService.stop();
+    await this.prisma.$disconnect();
+    console.log('🧹 Database cleanup service stopped');
   }
 
   getMetrics(): Record<string, any> {
@@ -106,5 +126,40 @@ export class BlockchainTrackingService {
 
   isInitialized(): boolean {
     return this.orchestrator !== null;
+  }
+
+  /**
+   * Get database cleanup metrics
+   */
+  getCleanupMetrics(): any {
+    return this.cleanupService.getMetrics();
+  }
+
+  /**
+   * Get cleanup service status
+   */
+  getCleanupStatus(): any {
+    return this.cleanupService.getStatus();
+  }
+
+  /**
+   * Run cleanup manually
+   */
+  async runCleanup(): Promise<any> {
+    return this.cleanupService.runCleanup();
+  }
+
+  /**
+   * Get database statistics
+   */
+  async getDatabaseStats(): Promise<any> {
+    return this.cleanupService.getDatabaseStats();
+  }
+
+  /**
+   * Get token repository for direct database operations
+   */
+  getTokenRepository(): MonadTokenRepositoryImpl {
+    return this.tokenRepository;
   }
 }

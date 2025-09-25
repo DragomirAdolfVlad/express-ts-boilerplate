@@ -63,3 +63,225 @@ model UserRole {
     @@unique([userId, role])
     @@map("user_roles")
 }
+
+// =============================================================================
+// MONAD BLOCKCHAIN TRACKER MODELS
+// =============================================================================
+// These models mirror the pump.fun structure for frontend compatibility
+// while handling Monad-specific features like 4-reserve bonding curves
+
+// Monad equivalent of LaunchedToken
+model MonadLaunchedToken {
+  id             Int                      @id @default(autoincrement())
+  platform       String                  @default("monad") // Always "monad" for this tracker
+  signature      String                   @unique // Transaction hash
+  creator        String                   // Token creator address
+  token          String                   @unique // Token contract address
+  bondingCurve   String                   @map("bonding_curve") // Bonding curve contract
+  blockNumber    String                   @map("block_number") // Monad block number
+  blockId        String                   @map("block_id") // Monad-specific block ID
+  commitState    String                   @map("commit_state") // proposed/voted/finalized/verified
+  timestamp      DateTime
+  name           String?                  // Token name (from metadata)
+  symbol         String?                  // Token symbol (from metadata)
+  metadataId     Int?                     @unique @map("metadata_id")
+  createdAt      DateTime                 @default(now()) @map("created_at")
+  updatedAt      DateTime                 @updatedAt @map("updated_at")
+
+  // Relations
+  archivedTrades ArchivedMonadTokenTrade[]
+  metadata       MonadTokenMetadata?      @relation(fields: [metadataId], references: [id])
+  tokenStats     MonadTokenTradeStats?
+  trades         MonadTokenTrade[]
+
+  @@index([creator])
+  @@index([timestamp])
+  @@index([signature])
+  @@index([token])
+  @@index([bondingCurve])
+  @@index([platform])
+  @@index([blockNumber])
+  @@index([commitState])
+  @@map("monad_launched_tokens")
+}
+
+// Monad equivalent of TokenMetadata
+model MonadTokenMetadata {
+  id          Int                  @id @default(autoincrement())
+  name        String
+  symbol      String
+  description String?
+  image       String?
+  showName    Boolean?             @default(false) @map("show_name")
+  createdOn   String?              @map("created_on")
+  website     Json?
+  telegram    String?
+  twitter     String?
+  createdAt   DateTime             @default(now()) @map("created_at")
+  updatedAt   DateTime             @updatedAt @map("updated_at")
+
+  // Relations
+  token       MonadLaunchedToken?
+
+  @@index([name])
+  @@index([symbol])
+  @@map("monad_token_metadata")
+}
+
+// Monad equivalent of TokenTrade
+model MonadTokenTrade {
+  id                   Int                @id @default(autoincrement())
+  tokenAddress         String             @map("token_address")
+  signature            String?            // Transaction hash
+  blockNumber          String             @map("block_number")
+  blockId              String             @map("block_id")
+  commitState          String             @map("commit_state") // Track which phase this trade was recorded in
+  trader               String
+  isBuy                Boolean            @map("is_buy")
+  
+  // Monad uses WMON (wrapped MON) instead of SOL
+  wmonAmount           Decimal            @map("wmon_amount") @db.Decimal(20, 9)
+  tokenAmount          Decimal            @map("token_amount") @db.Decimal(30, 9)
+  pricePerToken        Decimal            @map("price_per_token") @db.Decimal(20, 9)
+  usdAmount            Decimal            @map("usd_amount") @db.Decimal(20, 2)
+  
+  isCreatorTrade       Boolean            @default(false) @map("is_creator_trade")
+  timestamp            DateTime
+  curveProgress        Float?             @map("curve_progress")
+  marketCap            Decimal?           @map("market_cap") @db.Decimal(20, 2)
+  liquidityUsd         Decimal?           @map("liquidity_usd") @db.Decimal(20, 2)
+  
+  // Monad bonding curve reserves (4 reserves instead of 2)
+  reserve1             String?            // Virtual token reserves
+  reserve2             String?            // Virtual WMON reserves  
+  reserve3             String?            // Real token reserves
+  reserve4             String?            // Real WMON reserves
+  
+  usdSpotPrice         Decimal?           @map("usd_spot_price") @db.Decimal(20, 9)
+  createdAt            DateTime           @default(now()) @map("created_at")
+  updatedAt            DateTime           @updatedAt @map("updated_at")
+
+  // Relations
+  token                MonadLaunchedToken @relation(fields: [tokenAddress], references: [token])
+
+  @@index([tokenAddress])
+  @@index([trader])
+  @@index([timestamp])
+  @@index([signature])
+  @@index([isCreatorTrade])
+  @@index([commitState])
+  @@index([blockNumber])
+  @@index([tokenAddress, timestamp])
+  @@index([trader, timestamp])
+  @@index([tokenAddress, commitState]) // For filtering by finalized trades
+  @@map("monad_token_trades")
+}
+
+// Monad equivalent of TokenTradeStats
+model MonadTokenTradeStats {
+  id               Int                @id @default(autoincrement())
+  tokenAddress     String             @unique @map("token_address")
+  totalTxCount     Int                @default(0) @map("total_tx_count")
+  totalWmonVolume  Decimal            @default(0) @map("total_wmon_volume") @db.Decimal(30, 9)
+  totalUsdVolume   Decimal            @default(0) @map("total_usd_volume") @db.Decimal(30, 2)
+  buyCount         Int                @default(0) @map("buy_count")
+  sellCount        Int                @default(0) @map("sell_count")
+  buyVolumeUsd     Decimal            @default(0) @map("buy_volume_usd") @db.Decimal(30, 2)
+  sellVolumeUsd    Decimal            @default(0) @map("sell_volume_usd") @db.Decimal(30, 2)
+  creatorHoldings  Decimal            @default(0) @map("creator_holdings") @db.Decimal(30, 9)
+  creatorSold      Boolean            @default(false) @map("creator_sold")
+  lastTradeTime    DateTime           @map("last_trade_time")
+  
+  // Monad-specific stats
+  proposedTrades   Int                @default(0) @map("proposed_trades")
+  finalizedTrades  Int                @default(0) @map("finalized_trades")
+  verifiedTrades   Int                @default(0) @map("verified_trades")
+  
+  createdAt        DateTime           @default(now()) @map("created_at")
+  updatedAt        DateTime           @updatedAt @map("updated_at")
+
+  // Relations
+  token            MonadLaunchedToken @relation(fields: [tokenAddress], references: [token])
+
+  @@index([tokenAddress])
+  @@index([lastTradeTime])
+  @@index([totalUsdVolume])
+  @@index([creatorSold])
+  @@index([finalizedTrades])
+  @@map("monad_token_trade_stats")
+}
+
+// Monad equivalent of ArchivedTokenTrade
+model ArchivedMonadTokenTrade {
+  id                   Int                @id @default(autoincrement())
+  tokenAddress         String             @map("token_address")
+  signature            String?
+  blockNumber          String             @map("block_number")
+  blockId              String             @map("block_id")
+  commitState          String             @map("commit_state")
+  trader               String
+  isBuy                Boolean            @map("is_buy")
+  wmonAmount           Decimal            @map("wmon_amount") @db.Decimal(20, 9)
+  tokenAmount          Decimal            @map("token_amount") @db.Decimal(30, 9)
+  pricePerToken        Decimal            @map("price_per_token") @db.Decimal(20, 9)
+  usdAmount            Decimal            @map("usd_amount") @db.Decimal(20, 2)
+  isCreatorTrade       Boolean            @default(false) @map("is_creator_trade")
+  timestamp            DateTime
+  curveProgress        Float?             @map("curve_progress")
+  marketCap            Decimal?           @map("market_cap") @db.Decimal(20, 2)
+  reserve1             String?
+  reserve2             String?
+  reserve3             String?
+  reserve4             String?
+  usdSpotPrice         Decimal?           @map("usd_spot_price") @db.Decimal(20, 9)
+  createdAt            DateTime           @default(now()) @map("created_at")
+  updatedAt            DateTime           @updatedAt @map("updated_at")
+
+  // Relations
+  token                MonadLaunchedToken @relation(fields: [tokenAddress], references: [token])
+
+  @@index([tokenAddress])
+  @@index([trader])
+  @@index([timestamp])
+  @@index([signature])
+  @@index([isCreatorTrade])
+  @@index([commitState])
+  @@index([tokenAddress, timestamp])
+  @@map("archived_monad_token_trades")
+}
+
+// Monad equivalent of ArchivedLaunchedToken
+model ArchivedMonadLaunchedToken {
+  id                Int       @id @default(autoincrement())
+  platform          String    @default("monad")
+  signature         String
+  creator           String
+  token             String    @unique
+  bondingCurve      String    @map("bonding_curve")
+  blockNumber       String    @map("block_number")
+  blockId           String    @map("block_id")
+  timestamp         DateTime
+  name              String?
+  symbol            String?
+  metadataSnapshot  Json?     @map("metadata_snapshot")
+  archivedAt        DateTime  @default(now()) @map("archived_at")
+  archiveReason     String    @map("archive_reason")
+  lastActivityAt    DateTime? @map("last_activity_at")
+  finalMarketCap    Decimal?  @map("final_market_cap") @db.Decimal(20, 2)
+  totalVolumeUsd    Decimal?  @default(0) @map("total_volume_usd") @db.Decimal(30, 2)
+  totalTrades       Int?      @default(0) @map("total_trades")
+  originalCreatedAt DateTime  @map("original_created_at")
+  originalUpdatedAt DateTime  @map("original_updated_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  @@index([token])
+  @@index([creator])
+  @@index([archivedAt])
+  @@index([archiveReason])
+  @@index([lastActivityAt])
+  @@index([platform])
+  @@index([totalVolumeUsd])
+  @@index([blockNumber])
+  @@map("archived_monad_launched_tokens")
+}

@@ -9,8 +9,11 @@ import { IBlockchainTracker, TrackerConfiguration } from '../../application/inte
 import { ITrackerFactory } from '../../application/services/tracker-orchestrator.service';
 import { MonadTrackerAdapter } from '../blockchain/monad-tracker.adapter';
 import { CurveEventDecoderAdapter } from '../blockchain/curve-event-decoder.adapter';
+import { MonadTokenRepository } from '../database/monad-token.repository';
 
 export class TrackerFactory implements ITrackerFactory {
+  constructor(private readonly tokenRepository?: MonadTokenRepository) {}
+
   create(type: string, config: TrackerConfiguration): IBlockchainTracker {
     switch (type.toLowerCase()) {
       case 'monad':
@@ -23,6 +26,16 @@ export class TrackerFactory implements ITrackerFactory {
 
   private createMonadTracker(config: TrackerConfiguration): IBlockchainTracker {
     const eventDecoder = new CurveEventDecoderAdapter();
-    return new MonadTrackerAdapter(config, eventDecoder);
+    const tracker = new MonadTrackerAdapter(config, eventDecoder);
+    
+    // Inject repository if available
+    if (this.tokenRepository) {
+      console.log('[🏭 FACTORY] Injecting repository into Monad tracker');
+      tracker.setTokenRepository(this.tokenRepository);
+    } else {
+      console.warn('[⚠️ FACTORY] No repository available for injection');
+    }
+    
+    return tracker;
   }
 }

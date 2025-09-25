@@ -9,12 +9,23 @@ import WebSocket from 'ws';
 import { IBlockchainTracker, TrackerConfiguration, TrackerMetrics, TrackerHealthStatus } from '../../application/interfaces/blockchain-tracker.interface';
 import { IEventDecoderService, RawBlockchainLog } from '../../domain/services/event-decoder.service';
 import { BlockchainEvent, EventPhase } from '../../domain/entities/blockchain-event.entity';
+import { MonadTokenProcessorService } from '../../application/services/monad-token-processor.service';
+import { WmonPriceProviderAdapter } from '../pricing/wmon-price-provider.adapter';
+import { MonadTokenRepository } from '../database/monad-token.repository';
+import {
+  CurveTradeEvent,
+  CurveTokenEvent,
+  CurvePairEvent
+} from '../../domain/entities/curve-events.entity';
 
 export class MonadTrackerAdapter implements IBlockchainTracker {
   private ws: WebSocket | null = null;
   private pingInterval: NodeJS.Timeout | null = null;
 
   private eventCallback: ((event: BlockchainEvent) => Promise<void>) | null = null;
+  private tokenProcessor: MonadTokenProcessorService;
+  private wmonPriceProvider: WmonPriceProviderAdapter;
+  private tokenRepository: MonadTokenRepository | null = null;
 
   private readonly metrics = {
     isConnected: false,
@@ -32,7 +43,11 @@ export class MonadTrackerAdapter implements IBlockchainTracker {
   constructor(
     private readonly config: TrackerConfiguration,
     private readonly eventDecoder: IEventDecoderService
-  ) { }
+  ) {
+    // Initialize token processing services
+    this.wmonPriceProvider = new WmonPriceProviderAdapter();
+    this.tokenProcessor = new MonadTokenProcessorService(this.wmonPriceProvider);
+  }
 
   async start(): Promise<void> {
     if (this.metrics.isConnected) {
@@ -80,6 +95,14 @@ export class MonadTrackerAdapter implements IBlockchainTracker {
 
   onEvent(callback: (event: BlockchainEvent) => Promise<void>): void {
     this.eventCallback = callback;
+  }
+
+  /**
+   * Inject the token repository for database operations
+   */
+  setTokenRepository(repository: MonadTokenRepository): void {
+    this.tokenRepository = repository;
+    console.log('[🔗 INJECT] Token repository injected into tracker');
   }
 
   private async connect(): Promise<void> {
@@ -200,6 +223,9 @@ export class MonadTrackerAdapter implements IBlockchainTracker {
         this.metrics.eventsProcessed++;
         this.metrics.lastEventTime = new Date();
 
+        // Process the event for token/trade data
+        await this.processTokenEvent(decodingResult.event, phase);
+
         if (this.eventCallback) {
           await this.eventCallback(decodingResult.event);
         }
@@ -318,5 +344,113 @@ export class MonadTrackerAdapter implements IBlockchainTracker {
   private calculateUptime(): number | null {
     if (!this.startTime) return null;
     return Date.now() - this.startTime.getTime();
+  }
+
+  /**
+   * Process blockchain events for token/trade data
+   * Focus on finalized events for confirmed transactions
+   */
+  private async processTokenEvent(event: BlockchainEvent, _phase: string): Promise<void> {
+    try {
+      // Only process finalized events for database persistence
+      // const shouldProcess = this.tokenProcessor.shouldProcessEvent(phase, true);
+
+      if (event instanceof CurveTokenEvent) {
+        const result = await this.tokenProcessor.processTokenLaunch(event);
+
+        if (result.shouldPersist) {
+          console.log(`[💾 PERSIST] Token Launch: ${result.token.address} - ${result.reason}`);
+          
+          // Save to database
+          try {
+            await this.saveTokenToDatabase(result.token);
+          } catch (error) {
+            console.error(`[❌ DB] Failed to save token:`, error);
+          }
+        } else {
+          console.log(`[⏳ SKIP] Token Launch: ${result.token.address} - ${result.reason}`);
+        }
+      }
+
+      else if (event instanceof CurveTradeEvent) {
+        const result = await this.tokenProcessor.processTrade(event);
+
+        if (result.shouldPersist) {
+          // Get price info for better logging
+          const priceInfo = await this.tokenProcessor.getWmonPriceInfo();
+          const usdValue = (Number(result.trade.wmonAmount) / 1e18) * priceInfo.price;
+
+          console.log(`[� PEORSIST] ${result.trade.isBuy ? '🟢 BUY' : '🔴 SELL'} ${result.trade.tokenAddress.slice(0, 8)}...`);
+          console.log(`  💰 Amount: ${(Number(result.trade.wmonAmount) / 1e18).toFixed(4)} WMON ($${usdValue.toFixed(2)})`);
+          console.log(`  🪙 Tokens: ${(Number(result.trade.tokenAmount) / 1e18).toFixed(2)}`);
+          console.log(`  📊 Price: $${priceInfo.price.toFixed(6)} WMON (±${((priceInfo.confidence / priceInfo.price) * 100).toFixed(1)}%)`);
+          console.log(`  ⏰ ${result.reason}`);
+
+          // Convert to pump.fun format for frontend compatibility
+          const pumpFunFormat = await this.tokenProcessor.convertToPumpFunFormat(result.trade);
+          console.log(`[📊 FRONTEND DATA]`, JSON.stringify(pumpFunFormat, null, 2));
+
+          // Save to database
+          try {
+            await this.saveTradeToDatabase(result.trade);
+          } catch (error) {
+            console.error(`[❌ DB] Failed to save trade:`, error);
+          }
+        } else {
+          console.log(`[⏳ SKIP] Trade: ${result.trade.tokenAddress} - ${result.reason}`);
+        }
+      }
+
+      else if (event instanceof CurvePairEvent) {
+        const result = await this.tokenProcessor.processPairEvent(event);
+
+        if (result.shouldPersist) {
+          console.log(`[💾 PERSIST] DEX Graduation: ${result.token.address} - ${result.reason}`);
+          // TODO: Update token status in database
+          // await this.tokenRepository.markAsGraduated(result.token);
+        } else {
+          console.log(`[⏳ SKIP] DEX Graduation: ${result.token.address} - ${result.reason}`);
+        }
+      }
+
+    } catch (error) {
+      console.error('[❌ TOKEN PROCESSING ERROR]', error);
+    }
+  }
+
+  /**
+   * Save token to database
+   */
+  private async saveTokenToDatabase(token: any): Promise<void> {
+    if (!this.tokenRepository) {
+      console.warn(`[⚠️ DB] No repository injected, skipping token save: ${token.address}`);
+      return;
+    }
+
+    try {
+      await this.tokenRepository.saveToken(token);
+      console.log(`[💾 DB] Token saved: ${token.address}`);
+    } catch (error) {
+      console.error(`[❌ DB] Failed to save token ${token.address}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Save trade to database
+   */
+  private async saveTradeToDatabase(trade: any): Promise<void> {
+    if (!this.tokenRepository) {
+      console.warn(`[⚠️ DB] No repository injected, skipping trade save: ${trade.tokenAddress}`);
+      return;
+    }
+
+    try {
+      await this.tokenRepository.saveTrade(trade);
+      console.log(`[💾 DB] Trade saved: ${trade.tokenAddress} ${trade.isBuy ? 'BUY' : 'SELL'}`);
+    } catch (error) {
+      console.error(`[❌ DB] Failed to save trade ${trade.tokenAddress}:`, error);
+      throw error;
+    }
   }
 }
