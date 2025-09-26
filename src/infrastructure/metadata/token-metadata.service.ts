@@ -92,16 +92,23 @@ export class TokenMetadataService {
                 await this.extractFromEvent(metadata, creationEventData);
             }
 
-            // 2. Try nad.fun API first (they have better metadata)
+            // 2. PRODUCTION-GRADE: Try nad.fun API FIRST for instant metadata
+            console.log(`[⚡ PRODUCTION] Prioritizing nad.fun API for instant metadata`);
             const nadFunSuccess = await this.fetchNadFunMetadata(metadata, tokenAddress);
 
-            // 3. If nad.fun didn't work, fetch from ERC-20 contract
-            if (!nadFunSuccess) {
-                await this.fetchERC20Metadata(metadata, tokenAddress);
+            if (nadFunSuccess) {
+                // Got nad.fun metadata - cache and return immediately for production speed
+                this.cache.set(tokenAddress, metadata);
+                console.log(`[🚀 INSTANT] nad.fun metadata retrieved in production mode`);
+                return metadata;
             }
 
-            // 4. Fetch off-chain metadata if tokenURI is available and we don't have nad.fun data
-            if (metadata.tokenURI && !nadFunSuccess) {
+            // 3. Fallback: If nad.fun didn't work, try ERC-20 contract (slower)
+            console.log(`[⚠️ FALLBACK] nad.fun API failed, trying ERC-20 contract`);
+            await this.fetchERC20Metadata(metadata, tokenAddress);
+
+            // 4. Fetch off-chain metadata if tokenURI is available
+            if (metadata.tokenURI) {
                 await this.fetchOffChainMetadata(metadata);
             }
 
@@ -135,16 +142,17 @@ export class TokenMetadataService {
     private async fetchNadFunMetadata(metadata: TokenMetadata, tokenAddress: string): Promise<boolean> {
         try {
             const url = `${this.NAD_FUN_API_BASE}/token/metadata/${tokenAddress}`;
-            console.log(`[🎯 NAD.FUN] Fetching metadata from: ${url}`);
+            console.log(`[🎯 PRODUCTION] Fast nad.fun API call: ${url}`);
 
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+            const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout for production speed
 
             const response = await fetch(url, {
                 signal: controller.signal,
                 headers: {
                     'Accept': 'application/json',
-                    'User-Agent': 'Monad-Token-Tracker/1.0'
+                    'User-Agent': 'Monad-Token-Tracker/1.0',
+                    'Connection': 'keep-alive' // Optimize connection reuse
                 }
             });
 

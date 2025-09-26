@@ -157,7 +157,19 @@ export class CurveEventDecoderAdapter implements IEventDecoderService {
         return { success: false, error: 'Invalid token event data' };
       }
       
+      // Extract creator from topics[2] if available (nad.fun token creation events)
+      let creator = 'unknown';
+      if (log.topics[2]) {
+        const extractedCreator = this.extractAddressFromTopic(log.topics[2]);
+        if (extractedCreator) {
+          creator = extractedCreator;
+        }
+      }
+      
+      // Create enhanced token event with creator info
       const event = new CurveTokenEvent(eventData, token);
+      // Add creator to event data for processing
+      (event as any).creator = creator;
       
       return { success: true, event };
     } catch (error) {

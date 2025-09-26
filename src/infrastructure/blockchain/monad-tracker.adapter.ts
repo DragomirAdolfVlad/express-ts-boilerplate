@@ -263,16 +263,16 @@ export class MonadTrackerAdapter implements IBlockchainTracker {
       // 🔍 DEBUG: Log incoming events
       console.log(`[🔍 RAW EVENT] Received log from address: ${logData?.address}`);
       console.log(`[🔍 RAW EVENT] Expected nad.fun address: ${this.config.contractAddress}`);
-      
+
       // 🚫 HARD VALIDATION: Reject ANY event not from nad.fun contract
       if (logData?.address?.toLowerCase() !== this.config.contractAddress?.toLowerCase()) {
         console.log(`[🚫 REJECTED] Event from wrong contract: ${logData?.address} (expected: ${this.config.contractAddress})`);
         this.metrics.eventsSkipped++;
         return;
       }
-      
+
       console.log(`[✅ ACCEPTED] Event from nad.fun contract: ${logData?.address}`);
-      
+
       // Extract Monad-specific data and convert to standard format
       const { log: standardLog, phase } = this.extractMonadLogData(logData);
 
@@ -507,12 +507,30 @@ export class MonadTrackerAdapter implements IBlockchainTracker {
     }
 
     try {
-      // First save the basic token
-      await this.tokenRepository.saveToken(token);
-      console.log(`[💾 DB] Token saved: ${token.address}`);
+      console.log(`[🚀 PRODUCTION] Processing new token: ${token.address}`);
 
-      // Then fetch and save comprehensive metadata
-      await this.fetchAndSaveTokenMetadata(token);
+      // PRODUCTION-GRADE: Fetch metadata IMMEDIATELY in parallel with token save
+      const [, metadata] = await Promise.all([
+        // Save basic token to database
+        this.tokenRepository.saveToken(token).then(() => {
+          console.log(`[💾 DB] Token saved: ${token.address}`);
+        }),
+
+        // Fetch metadata from nad.fun API IMMEDIATELY
+        this.fetchTokenMetadataInstant(token)
+      ]);
+
+      // Save metadata to database if we got it
+      if (metadata && this.tokenRepository) {
+        await this.tokenRepository.updateTokenMetadata(token.address, metadata);
+        console.log(`[⚡ INSTANT] Metadata populated for ${token.address}:`, {
+          name: metadata.name,
+          symbol: metadata.symbol,
+          hasImage: !!metadata.image,
+          hasDescription: !!metadata.description,
+          hasSocials: !!(metadata.twitter || metadata.telegram)
+        });
+      }
 
     } catch (error) {
       console.error(`[❌ DB] Failed to save token ${token.address}:`, error);
@@ -521,11 +539,11 @@ export class MonadTrackerAdapter implements IBlockchainTracker {
   }
 
   /**
-   * Fetch comprehensive token metadata and update database
+   * PRODUCTION-GRADE: Fetch metadata instantly with optimized performance
    */
-  private async fetchAndSaveTokenMetadata(token: any): Promise<void> {
+  private async fetchTokenMetadataInstant(token: any): Promise<any | null> {
     try {
-      console.log(`[🔍 METADATA] Fetching metadata for token: ${token.address}`);
+      console.log(`[⚡ INSTANT] Fetching metadata for: ${token.address}`);
 
       // Prepare creation event data for metadata service
       const creationEventData = {
@@ -535,12 +553,17 @@ export class MonadTrackerAdapter implements IBlockchainTracker {
         bondingCurve: token.bondingCurve
       };
 
-      // Fetch comprehensive metadata
-      const metadata = await this.metadataService.getTokenMetadata(token.address, creationEventData);
+      // Fetch metadata with timeout for production reliability
+      const metadataPromise = this.metadataService.getTokenMetadata(token.address, creationEventData);
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Metadata fetch timeout')), 5000) // 5 second timeout
+      );
 
-      // Update token with enhanced metadata
-      if (this.tokenRepository && (metadata.description || metadata.image || metadata.website || metadata.twitter || metadata.telegram)) {
-        await this.tokenRepository.updateTokenMetadata(token.address, {
+      const metadata = await Promise.race([metadataPromise, timeoutPromise]) as any;
+
+      // Return structured metadata for database
+      if (metadata && (metadata.description || metadata.image || metadata.website || metadata.twitter || metadata.telegram)) {
+        return {
           name: metadata.name,
           symbol: metadata.symbol,
           description: metadata.description,
@@ -548,24 +571,18 @@ export class MonadTrackerAdapter implements IBlockchainTracker {
           website: metadata.website,
           twitter: metadata.twitter,
           telegram: metadata.telegram
-        });
-
-        console.log(`[✅ METADATA] Enhanced metadata saved for ${token.address}:`, {
-          name: metadata.name,
-          symbol: metadata.symbol,
-          hasImage: !!metadata.image,
-          hasDescription: !!metadata.description,
-          hasWebsite: !!metadata.website,
-          hasSocials: !!(metadata.twitter || metadata.telegram),
-          sources: metadata.sources
-        });
+        };
       }
 
+      return null;
+
     } catch (error) {
-      console.warn(`[⚠️ METADATA] Failed to fetch metadata for ${token.address}:`, error);
-      // Don't throw - metadata failure shouldn't prevent token saving
+      console.warn(`[⚠️ INSTANT] Metadata fetch failed for ${token.address}:`, error);
+      return null; // Don't block token creation if metadata fails
     }
   }
+
+
 
   /**
    * Save trade to database

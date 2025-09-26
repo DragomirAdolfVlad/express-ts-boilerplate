@@ -38,9 +38,12 @@ export class MonadTokenProcessorService {
    * Process a curve token event (new token launch)
    */
   async processTokenLaunch(event: CurveTokenEvent): Promise<ProcessedTokenLaunch> {
+    // Extract creator from event if available
+    const creator = (event as any).creator || 'unknown';
+    
     const tokenData: MonadTokenData = {
       address: event.tokenAddress,
-      creator: 'unknown', // Will be updated when we get more data
+      creator: creator, // Use extracted creator from blockchain event
       bondingCurve: event.address, // The contract that emitted the event
       blockNumber: event.blockNumber.toString(),
       blockId: 'unknown', // Will be set by the adapter
