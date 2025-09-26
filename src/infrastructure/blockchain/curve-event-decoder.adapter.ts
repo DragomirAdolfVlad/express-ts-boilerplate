@@ -196,8 +196,17 @@ export class CurveEventDecoderAdapter implements IEventDecoderService {
     if (!topic || topic.length < 66) return null;
     
     // Remove padding and add 0x prefix
-    const address = '0x' + topic.slice(26).toLowerCase();
-    return address;
+    const rawAddress = '0x' + topic.slice(26);
+    
+    // Convert to proper checksum format for nad.fun API compatibility
+    // Blockchain provides lowercase, but nad.fun needs proper mixed case
+    try {
+      const { ethers } = require('ethers');
+      return ethers.getAddress(rawAddress);
+    } catch {
+      // Fallback to raw address if checksum conversion fails
+      return rawAddress;
+    }
   }
 
   private parseReserves(data: string): {

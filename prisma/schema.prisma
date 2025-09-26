@@ -140,9 +140,9 @@ model MonadTokenTrade {
   isBuy                Boolean            @map("is_buy")
   
   // Monad uses WMON (wrapped MON) instead of SOL
-  wmonAmount           Decimal            @map("wmon_amount") @db.Decimal(20, 9)
+  wmonAmount           Decimal            @map("wmon_amount") @db.Decimal(30, 9)
   tokenAmount          Decimal            @map("token_amount") @db.Decimal(30, 9)
-  pricePerToken        Decimal            @map("price_per_token") @db.Decimal(20, 9)
+  pricePerToken        Decimal            @map("price_per_token") @db.Decimal(30, 9)
   usdAmount            Decimal            @map("usd_amount") @db.Decimal(20, 2)
   
   isCreatorTrade       Boolean            @default(false) @map("is_creator_trade")
@@ -221,9 +221,9 @@ model ArchivedMonadTokenTrade {
   commitState          String             @map("commit_state")
   trader               String
   isBuy                Boolean            @map("is_buy")
-  wmonAmount           Decimal            @map("wmon_amount") @db.Decimal(20, 9)
+  wmonAmount           Decimal            @map("wmon_amount") @db.Decimal(30, 9)
   tokenAmount          Decimal            @map("token_amount") @db.Decimal(30, 9)
-  pricePerToken        Decimal            @map("price_per_token") @db.Decimal(20, 9)
+  pricePerToken        Decimal            @map("price_per_token") @db.Decimal(30, 9)
   usdAmount            Decimal            @map("usd_amount") @db.Decimal(20, 2)
   isCreatorTrade       Boolean            @default(false) @map("is_creator_trade")
   timestamp            DateTime

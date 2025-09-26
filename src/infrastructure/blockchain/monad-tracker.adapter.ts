@@ -12,6 +12,7 @@ import { BlockchainEvent, EventPhase } from '../../domain/entities/blockchain-ev
 import { MonadTokenProcessorService } from '../../application/services/monad-token-processor.service';
 import { WmonPriceProviderAdapter } from '../pricing/wmon-price-provider.adapter';
 import { MonadTokenRepository } from '../database/monad-token.repository';
+import { TokenMetadataService } from '../metadata/token-metadata.service';
 import {
   CurveTradeEvent,
   CurveTokenEvent,
@@ -26,6 +27,7 @@ export class MonadTrackerAdapter implements IBlockchainTracker {
   private tokenProcessor: MonadTokenProcessorService;
   private wmonPriceProvider: WmonPriceProviderAdapter;
   private tokenRepository: MonadTokenRepository | null = null;
+  private metadataService: TokenMetadataService;
 
   private readonly metrics = {
     isConnected: false,
@@ -47,6 +49,7 @@ export class MonadTrackerAdapter implements IBlockchainTracker {
     // Initialize token processing services
     this.wmonPriceProvider = new WmonPriceProviderAdapter();
     this.tokenProcessor = new MonadTokenProcessorService(this.wmonPriceProvider);
+    this.metadataService = new TokenMetadataService(process.env['MONAD_HTTP_URL'] || process.env['MONAD_RPC'] || 'https://rpc.monad.xyz');
   }
 
   async start(): Promise<void> {
@@ -105,6 +108,57 @@ export class MonadTrackerAdapter implements IBlockchainTracker {
     console.log('[🔗 INJECT] Token repository injected into tracker');
   }
 
+  /**
+   * Manually fetch metadata for a token (useful for existing tokens)
+   */
+  async fetchTokenMetadata(tokenAddress: string): Promise<void> {
+    if (!this.tokenRepository) {
+      throw new Error('Repository not injected');
+    }
+
+    try {
+      console.log(`[🔍 MANUAL] Fetching metadata for token: ${tokenAddress}`);
+
+      // Get existing token data
+      const existingToken = await this.tokenRepository.findTokenByAddress(tokenAddress);
+      if (!existingToken) {
+        throw new Error(`Token ${tokenAddress} not found in database`);
+      }
+
+      // Fetch comprehensive metadata
+      const metadata = await this.metadataService.getTokenMetadata(tokenAddress, {
+        name: existingToken.name,
+        symbol: existingToken.symbol,
+        creator: existingToken.creator,
+        bondingCurve: existingToken.bondingCurve
+      });
+
+      // Update with enhanced metadata
+      await this.tokenRepository.updateTokenMetadata(tokenAddress, {
+        name: metadata.name,
+        symbol: metadata.symbol,
+        description: metadata.description,
+        image: metadata.image,
+        website: metadata.website,
+        twitter: metadata.twitter,
+        telegram: metadata.telegram
+      });
+
+      console.log(`[✅ MANUAL] Metadata updated for ${tokenAddress}:`, {
+        name: metadata.name,
+        symbol: metadata.symbol,
+        hasImage: !!metadata.image,
+        hasDescription: !!metadata.description,
+        hasWebsite: !!metadata.website,
+        hasSocials: !!(metadata.twitter || metadata.telegram)
+      });
+
+    } catch (error) {
+      console.error(`[❌ MANUAL] Failed to fetch metadata for ${tokenAddress}:`, error);
+      throw error;
+    }
+  }
+
   private async connect(): Promise<void> {
     return new Promise((resolve, reject) => {
       this.ws = new WebSocket(this.config.wsUrl);
@@ -143,6 +197,10 @@ export class MonadTrackerAdapter implements IBlockchainTracker {
           }
         ]
       };
+
+      // 🔍 DEBUG: Log subscription details
+      console.log(`[🔍 SUBSCRIPTION] Subscribing to contract: ${this.config.contractAddress}`);
+      console.log(`[🔍 SUBSCRIPTION] Subscription message:`, JSON.stringify(subscriptionMessage, null, 2));
 
       const responseHandler = (data: WebSocket.Data) => {
         try {
@@ -202,6 +260,19 @@ export class MonadTrackerAdapter implements IBlockchainTracker {
 
   private async processLog(logData: any): Promise<void> {
     try {
+      // 🔍 DEBUG: Log incoming events
+      console.log(`[🔍 RAW EVENT] Received log from address: ${logData?.address}`);
+      console.log(`[🔍 RAW EVENT] Expected nad.fun address: ${this.config.contractAddress}`);
+      
+      // 🚫 HARD VALIDATION: Reject ANY event not from nad.fun contract
+      if (logData?.address?.toLowerCase() !== this.config.contractAddress?.toLowerCase()) {
+        console.log(`[🚫 REJECTED] Event from wrong contract: ${logData?.address} (expected: ${this.config.contractAddress})`);
+        this.metrics.eventsSkipped++;
+        return;
+      }
+      
+      console.log(`[✅ ACCEPTED] Event from nad.fun contract: ${logData?.address}`);
+      
       // Extract Monad-specific data and convert to standard format
       const { log: standardLog, phase } = this.extractMonadLogData(logData);
 
@@ -352,15 +423,23 @@ export class MonadTrackerAdapter implements IBlockchainTracker {
    */
   private async processTokenEvent(event: BlockchainEvent, _phase: string): Promise<void> {
     try {
-      // Only process finalized events for database persistence
-      // const shouldProcess = this.tokenProcessor.shouldProcessEvent(phase, true);
+      // 🎯 NAD.FUN ONLY - Events are already filtered by contract address in subscription
+      // The tracker is configured to only listen to nad.fun contract, so all events here are nad.fun events
+
+      if (event instanceof CurveTokenEvent) {
+        console.log(`[🎯 NAD.FUN] Processing nad.fun token: ${event.tokenAddress}`);
+      }
+
+      if (event instanceof CurveTradeEvent) {
+        console.log(`[🎯 NAD.FUN] Processing nad.fun trade: ${event.tokenAddress}`);
+      }
 
       if (event instanceof CurveTokenEvent) {
         const result = await this.tokenProcessor.processTokenLaunch(event);
 
         if (result.shouldPersist) {
           console.log(`[💾 PERSIST] Token Launch: ${result.token.address} - ${result.reason}`);
-          
+
           // Save to database
           try {
             await this.saveTokenToDatabase(result.token);
@@ -419,7 +498,7 @@ export class MonadTrackerAdapter implements IBlockchainTracker {
   }
 
   /**
-   * Save token to database
+   * Save token to database with metadata
    */
   private async saveTokenToDatabase(token: any): Promise<void> {
     if (!this.tokenRepository) {
@@ -428,11 +507,63 @@ export class MonadTrackerAdapter implements IBlockchainTracker {
     }
 
     try {
+      // First save the basic token
       await this.tokenRepository.saveToken(token);
       console.log(`[💾 DB] Token saved: ${token.address}`);
+
+      // Then fetch and save comprehensive metadata
+      await this.fetchAndSaveTokenMetadata(token);
+
     } catch (error) {
       console.error(`[❌ DB] Failed to save token ${token.address}:`, error);
       throw error;
+    }
+  }
+
+  /**
+   * Fetch comprehensive token metadata and update database
+   */
+  private async fetchAndSaveTokenMetadata(token: any): Promise<void> {
+    try {
+      console.log(`[🔍 METADATA] Fetching metadata for token: ${token.address}`);
+
+      // Prepare creation event data for metadata service
+      const creationEventData = {
+        name: token.name,
+        symbol: token.symbol,
+        creator: token.creator,
+        bondingCurve: token.bondingCurve
+      };
+
+      // Fetch comprehensive metadata
+      const metadata = await this.metadataService.getTokenMetadata(token.address, creationEventData);
+
+      // Update token with enhanced metadata
+      if (this.tokenRepository && (metadata.description || metadata.image || metadata.website || metadata.twitter || metadata.telegram)) {
+        await this.tokenRepository.updateTokenMetadata(token.address, {
+          name: metadata.name,
+          symbol: metadata.symbol,
+          description: metadata.description,
+          image: metadata.image,
+          website: metadata.website,
+          twitter: metadata.twitter,
+          telegram: metadata.telegram
+        });
+
+        console.log(`[✅ METADATA] Enhanced metadata saved for ${token.address}:`, {
+          name: metadata.name,
+          symbol: metadata.symbol,
+          hasImage: !!metadata.image,
+          hasDescription: !!metadata.description,
+          hasWebsite: !!metadata.website,
+          hasSocials: !!(metadata.twitter || metadata.telegram),
+          sources: metadata.sources
+        });
+      }
+
+    } catch (error) {
+      console.warn(`[⚠️ METADATA] Failed to fetch metadata for ${token.address}:`, error);
+      // Don't throw - metadata failure shouldn't prevent token saving
     }
   }
 
