@@ -171,6 +171,7 @@ export class MonadTokenRepositoryImpl implements MonadTokenRepository {
     // =============================================================================
 
     async saveTrade(trade: MonadTrade): Promise<void> {
+        console.log(`[🚨 REPOSITORY] USING UPDATED REPOSITORY CODE - USD AMOUNT: ${trade.usdAmount}`);
         try {
             // First check if token exists - same pattern as PumpFun
             const existingToken = await this.prisma.monadLaunchedToken.findUnique({
@@ -211,21 +212,34 @@ export class MonadTokenRepositoryImpl implements MonadTokenRepository {
             const tokenAmount = this.bigIntToNumber(trade.tokenAmount, 9);
             const pricePerToken = this.bigIntToNumber(trade.pricePerToken, 9);
 
-            // Validate and cap all values to database limits (more conservative)
+            // Validate and cap all values to reasonable limits
             const maxDecimal30_9 = 999999999999999999; // For Decimal(30,9) - more conservative limit
-            const maxDecimal20_2 = 999999999999999.99; // For Decimal(20,2) - more conservative limit  
-            const maxDecimal20_9 = 99999999.999999999; // For Decimal(20,9) - more conservative limit
+            const maxDecimal20_2 = 999999999999.99; // For Decimal(20,2) - 1 trillion max (reasonable for market cap)
+            const maxDecimal20_9 = 999999.999999999; // For Decimal(20,9) - 1 million max (reasonable for token price)
 
             // Cap the main trade values
             const cappedWmonAmount = Math.min(wmonAmount, maxDecimal30_9);
             const cappedTokenAmount = Math.min(tokenAmount, maxDecimal30_9);
             const cappedPricePerToken = Math.min(pricePerToken, maxDecimal30_9);
 
-            // Calculate additional fields with validation
-            const usdAmount = Math.min(cappedWmonAmount * 3.26, maxDecimal20_2);
-            const marketCap = Math.min(cappedTokenAmount * cappedPricePerToken, maxDecimal20_2);
-            const liquidityUsd = Math.min(usdAmount, maxDecimal20_2);
-            const usdSpotPrice = Math.min(cappedPricePerToken * 3.26, maxDecimal20_9);
+            // SIMPLE FIXED CALCULATION - No more complex logic that breaks
+            console.log(`[🔍 FIXED] Using simple calculation instead of broken complex one`);
+            
+            // Use the USD amount from trade processor (should be correct)
+            const usdAmount = trade.usdAmount || 0;
+            console.log(`[🔍 FIXED] trade.usdAmount: ${usdAmount}`);
+            
+            // Simple USD spot price: usd amount / token amount  
+            const usdSpotPrice = cappedTokenAmount > 0 ? usdAmount / cappedTokenAmount : 0;
+            console.log(`[🔍 FIXED] calculated usdSpotPrice: ${usdSpotPrice}`);
+            
+            // Simple market cap: assume 1B token supply * price per token
+            const marketCap = usdSpotPrice * 1000000000; // 1B tokens
+            console.log(`[🔍 FIXED] calculated marketCap: ${marketCap}`);
+            
+            // Simple liquidity: 10% of market cap
+            const liquidityUsd = marketCap * 0.1;
+            console.log(`[🔍 FIXED] calculated liquidityUsd: ${liquidityUsd}`);
 
             // Log if values were capped
             if (wmonAmount !== cappedWmonAmount || tokenAmount !== cappedTokenAmount || pricePerToken !== cappedPricePerToken) {
@@ -238,15 +252,16 @@ export class MonadTokenRepositoryImpl implements MonadTokenRepository {
             const curveProgress = this.calculateCurveProgress(trade.reserves);
 
             // Debug logging for all values being inserted
-            console.log(`[🔍 DB] Inserting trade with values:`, {
-                cappedWmonAmount,
-                cappedTokenAmount,
-                cappedPricePerToken,
-                usdAmount,
-                marketCap,
-                liquidityUsd,
-                usdSpotPrice,
-                curveProgress
+            console.log(`[🔍 DB] CALCULATED VALUES:`, {
+                'trade.usdAmount (input)': trade.usdAmount,
+                'typeof trade.usdAmount': typeof trade.usdAmount,
+                'cappedTokenAmount': cappedTokenAmount,
+                'usdAmount (final)': usdAmount,
+                'usdSpotPrice (calculated)': usdSpotPrice,
+                'marketCap (calculated)': marketCap,
+                'liquidityUsd (calculated)': liquidityUsd,
+                'curveProgress': curveProgress,
+                'maxDecimal20_2': maxDecimal20_2
             });
 
             // Insert trade using Prisma model - same pattern as PumpFun

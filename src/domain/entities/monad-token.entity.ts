@@ -24,6 +24,7 @@ export interface MonadTradeData {
   readonly wmonAmount: bigint;
   readonly tokenAmount: bigint;
   readonly pricePerToken: bigint;
+  readonly usdAmount?: number; // USD value of the trade
   readonly reserves: {
     reserve1: bigint; // Virtual token reserves
     reserve2: bigint; // Virtual WMON reserves
@@ -129,6 +130,10 @@ export class MonadTrade {
     return this.data.pricePerToken;
   }
 
+  get usdAmount(): number | undefined {
+    return this.data.usdAmount;
+  }
+
   get reserves(): typeof this.data.reserves {
     return this.data.reserves;
   }
@@ -159,13 +164,20 @@ export class MonadTrade {
 
   // Calculate market cap based on reserves
   calculateMarketCap(wmonPriceUsd: number): number {
-    // Market cap = (total supply - real reserves) * price per token * USD price
-    const virtualTokenSupply = this.reserves.reserve1;
-    const realTokenReserves = this.reserves.reserve3;
-    const circulatingSupply = virtualTokenSupply - realTokenReserves;
+    // Market cap = circulating supply * price per token * USD price
+    const virtualTokenSupply = Number(this.reserves.reserve1) / 1e18;
+    const realTokenReserves = Number(this.reserves.reserve3) / 1e18;
     
+    // Ensure we have reasonable values
+    if (virtualTokenSupply === 0 || realTokenReserves < 0) {
+      // Fallback calculation using standard bonding curve assumptions
+      const pricePerTokenUsd = (Number(this.pricePerToken) / 1e18) * wmonPriceUsd;
+      return 800000000 * pricePerTokenUsd; // 800M circulating supply estimate
+    }
+    
+    const circulatingSupply = Math.max(0, virtualTokenSupply - realTokenReserves);
     const pricePerTokenInWmon = Number(this.pricePerToken) / 1e18;
-    const marketCapInWmon = Number(circulatingSupply) / 1e18 * pricePerTokenInWmon;
+    const marketCapInWmon = circulatingSupply * pricePerTokenInWmon;
     
     return marketCapInWmon * wmonPriceUsd;
   }

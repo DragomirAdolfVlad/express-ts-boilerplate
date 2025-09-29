@@ -90,6 +90,19 @@ export async function startServer(): Promise<void> {
         });
     });
 
+    // Initialize WMON price background service
+    const { WmonPriceBackgroundService } = await import('./application/services/wmon-price-background.service');
+    const priceService = new WmonPriceBackgroundService();
+    
+    try {
+        await priceService.start();
+        log.info('WMON price background service started successfully');
+    } catch (error) {
+        log.error('Failed to start WMON price service', {
+            error: error instanceof Error ? error.message : String(error)
+        });
+    }
+
     // Initialize the blockchain tracking service
     const trackingService = new BlockchainTrackingService({
         monad: {
@@ -107,7 +120,7 @@ export async function startServer(): Promise<void> {
             channel: process.env['REDIS_CHANNEL'] || 'nadfun:live'
         },
         features: {
-            enablePersistence: false, // Enable when PostgreSQL repository is implemented
+            enablePersistence: true, // ENABLED - PostgreSQL repository is working
             enablePublishing: true
         }
     });
@@ -125,11 +138,21 @@ export async function startServer(): Promise<void> {
     // Graceful shutdown handling
     const gracefulShutdown = async (signal: string) => {
         log.info(`Received ${signal}, shutting down gracefully`);
-        
+
         // Close HTTP server
         server.close(() => {
             log.info('HTTP server closed');
         });
+
+        // Shutdown price service
+        try {
+            priceService.stop();
+            log.info('WMON price service stopped');
+        } catch (error) {
+            log.error('Error stopping price service:', {
+                error: error instanceof Error ? error.message : String(error)
+            });
+        }
 
         // Shutdown blockchain tracking service
         try {

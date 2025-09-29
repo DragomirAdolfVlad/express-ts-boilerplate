@@ -44,10 +44,11 @@ export class MonadTrackerAdapter implements IBlockchainTracker {
 
   constructor(
     private readonly config: TrackerConfiguration,
-    private readonly eventDecoder: IEventDecoderService
+    private readonly eventDecoder: IEventDecoderService,
+    priceProvider?: WmonPriceProviderAdapter
   ) {
     // Initialize token processing services
-    this.wmonPriceProvider = new WmonPriceProviderAdapter();
+    this.wmonPriceProvider = priceProvider || new WmonPriceProviderAdapter();
     this.tokenProcessor = new MonadTokenProcessorService(this.wmonPriceProvider);
     this.metadataService = new TokenMetadataService(process.env['MONAD_HTTP_URL'] || process.env['MONAD_RPC'] || 'https://rpc.monad.xyz');
   }
