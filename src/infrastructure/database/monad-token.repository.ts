@@ -167,45 +167,85 @@ export class MonadTokenRepositoryImpl implements MonadTokenRepository {
     }
 
     // =============================================================================
+    // UTILITY METHODS
+    // =============================================================================
+
+    /**
+     * Ensure token exists before writing trades (prevents FK violations)
+     * Uses upsert for idempotency and speed
+     */
+    private async ensureTokenExists(params: {
+        tokenAddress: string;
+        creator?: string;
+        bondingCurve?: string;
+        blockNumber: string;
+        blockId?: string;
+        commitState: string;
+        timestamp: Date;
+        signature: string;
+    }): Promise<void> {
+        await this.prisma.monadLaunchedToken.upsert({
+            where: { token: params.tokenAddress },
+            create: {
+                platform: 'monad',
+                signature: params.signature,
+                creator: params.creator || 'unknown',
+                token: params.tokenAddress,
+                bondingCurve: params.bondingCurve || 'unknown',
+                blockNumber: params.blockNumber,
+                blockId: params.blockId || 'unknown',
+                commitState: params.commitState as any,
+                timestamp: params.timestamp
+            },
+            update: {
+                // Update commit state if it progresses (proposed -> finalized -> verified)
+                commitState: params.commitState as any
+            }
+        });
+    }
+
+    /**
+     * Ensure trade stats record exists (prevents FK violations)
+     */
+    private async ensureTradeStatsExists(tokenAddress: string, timestamp: Date): Promise<void> {
+        await this.prisma.monadTokenTradeStats.upsert({
+            where: { tokenAddress },
+            create: {
+                tokenAddress,
+                totalTxCount: 0,
+                buyCount: 0,
+                sellCount: 0,
+                totalWmonVolume: '0',
+                totalUsdVolume: '0',
+                lastTradeTime: timestamp
+            },
+            update: {
+                lastTradeTime: timestamp
+            }
+        });
+    }
+
+    // =============================================================================
     // TRADE OPERATIONS
     // =============================================================================
 
     async saveTrade(trade: MonadTrade): Promise<void> {
         console.log(`[🚨 REPOSITORY] USING UPDATED REPOSITORY CODE - USD AMOUNT: ${trade.usdAmount}`);
         try {
-            // First check if token exists - same pattern as PumpFun
-            const existingToken = await this.prisma.monadLaunchedToken.findUnique({
-                where: { token: trade.tokenAddress },
-                select: { token: true }
+            // ALWAYS ensure token exists before writing trade (upsert is idempotent and fast)
+            await this.ensureTokenExists({
+                tokenAddress: trade.tokenAddress,
+                creator: trade.creator || 'unknown',
+                bondingCurve: trade.bondingCurve || 'unknown',
+                blockNumber: trade.blockNumber,
+                blockId: trade.blockId || 'unknown',
+                commitState: trade.commitState,
+                timestamp: trade.timestamp,
+                signature: trade.transactionHash
             });
 
-            if (!existingToken) {
-                console.warn(`[⚠️ DB] Token not found, creating minimal record: ${trade.tokenAddress}`);
-
-                // Create minimal token record
-                try {
-                    await this.prisma.monadLaunchedToken.create({
-                        data: {
-                            platform: 'monad',
-                            signature: `${trade.tokenAddress}_${trade.blockNumber}`,
-                            creator: 'unknown',
-                            token: trade.tokenAddress,
-                            bondingCurve: 'unknown',
-                            blockNumber: trade.blockNumber,
-                            blockId: trade.blockId || 'unknown',
-                            commitState: trade.commitState as any,
-                            timestamp: trade.timestamp
-                        }
-                    });
-                } catch (tokenError) {
-                    if (tokenError instanceof Error && tokenError.message.includes('unique constraint')) {
-                        // Token was created by another process, continue
-                        console.log(`[💾 DB] Token created by another process: ${trade.tokenAddress}`);
-                    } else {
-                        throw tokenError;
-                    }
-                }
-            }
+            // Ensure trade stats record exists
+            await this.ensureTradeStatsExists(trade.tokenAddress, trade.timestamp);
 
             // Replace your 9-dec conversions with 18
             const wmonAmount = this.bigIntToNumber(trade.wmonAmount, 18);     // WMON
@@ -238,12 +278,19 @@ export class MonadTokenRepositoryImpl implements MonadTokenRepository {
                 'curveProgress': curveProgress
             });
 
-            // Insert trade using Prisma model - same pattern as PumpFun
+            // Create unique trade ID for idempotency
+            const logIndex = trade.logIndex || 0;
+            const uniqueTradeId = `${trade.transactionHash}:${logIndex}`;
+
+            // Upsert trade (idempotent on uniqueTradeId)
             try {
-                await this.prisma.monadTokenTrade.create({
-                    data: {
+                await this.prisma.monadTokenTrade.upsert({
+                    where: { uniqueTradeId },
+                    create: {
                         tokenAddress: trade.tokenAddress,
                         signature: trade.transactionHash,
+                        logIndex,
+                        uniqueTradeId,
                         blockNumber: trade.blockNumber,
                         blockId: trade.blockId || 'unknown',
                         commitState: trade.commitState as any,
@@ -267,6 +314,20 @@ export class MonadTokenRepositoryImpl implements MonadTokenRepository {
                         reserve3: this.bigIntToNumber(trade.reserves.reserve3, 18),
                         reserve4: this.bigIntToNumber(trade.reserves.reserve4, 18),
                         usdSpotPrice: usdSpotPrice
+                    },
+                    update: {
+                        // On reorg/commit-state changes, update these fields
+                        commitState: trade.commitState as any,
+                        blockNumber: trade.blockNumber,
+                        blockId: trade.blockId || 'unknown',
+                        usdSpotPrice: usdSpotPrice,
+                        curveProgress: curveProgress,
+                        marketCap: marketCap,
+                        liquidityUsd: liquidityUsd,
+                        reserve1: this.bigIntToNumber(trade.reserves.reserve1, 18),
+                        reserve2: this.bigIntToNumber(trade.reserves.reserve2, 18),
+                        reserve3: this.bigIntToNumber(trade.reserves.reserve3, 18),
+                        reserve4: this.bigIntToNumber(trade.reserves.reserve4, 18)
                     }
                 });
             } catch (dbError) {

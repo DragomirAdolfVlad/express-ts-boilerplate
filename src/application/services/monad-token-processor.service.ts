@@ -142,7 +142,8 @@ export class MonadTokenProcessorService {
       blockId: 'unknown', // Will be set by the adapter
       commitState: tradeEvent.phase,
       timestamp: tradeEvent.timestamp,
-      transactionHash: tradeEvent.id.transactionHash
+      transactionHash: tradeEvent.id.transactionHash,
+      logIndex: tradeEvent.id.logIndex
     };
 
     const trade = new MonadTrade(tradeData);

@@ -36,6 +36,7 @@ export interface MonadTradeData {
   readonly commitState: string;
   readonly timestamp: Date;
   readonly transactionHash: string;
+  readonly logIndex?: number;
 }
 
 export class MonadToken {
@@ -156,6 +157,18 @@ export class MonadTrade {
 
   get transactionHash(): string {
     return this.data.transactionHash;
+  }
+
+  get logIndex(): number | undefined {
+    return this.data.logIndex;
+  }
+
+  get creator(): string | undefined {
+    return undefined; // Not available in trade data
+  }
+
+  get bondingCurve(): string | undefined {
+    return undefined; // Not available in trade data
   }
 
   get isFinalized(): boolean {

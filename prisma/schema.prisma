@@ -140,6 +140,8 @@ model MonadTokenTrade {
   id                   Int                @id @default(autoincrement())
   tokenAddress         String             @map("token_address")
   signature            String?            // Transaction hash
+  logIndex             Int?               @map("log_index")            // Log index within transaction
+  uniqueTradeId        String?            @unique @map("unique_trade_id") // ${signature}:${logIndex} for idempotency
   blockNumber          String             @map("block_number")
   blockId              String             @map("block_id")
   commitState          CommitState        @map("commit_state") // Track which phase this trade was recorded in
