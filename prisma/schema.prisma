@@ -10,6 +10,13 @@ datasource db {
     url      = env("DATABASE_URL")
 }
 
+// Monad commit states enum to avoid typos
+enum CommitState {
+    proposed
+    finalized
+    verified
+}
+
 // User model for authentication and user management
 model User {
     id        String   @id @default(cuid())
@@ -80,7 +87,7 @@ model MonadLaunchedToken {
   bondingCurve   String                   @map("bonding_curve") // Bonding curve contract
   blockNumber    String                   @map("block_number") // Monad block number
   blockId        String                   @map("block_id") // Monad-specific block ID
-  commitState    String                   @map("commit_state") // proposed/voted/finalized/verified
+  commitState    CommitState              @map("commit_state") // proposed/finalized/verified
   timestamp      DateTime
   name           String?                  // Token name (from metadata)
   symbol         String?                  // Token symbol (from metadata)
@@ -135,29 +142,30 @@ model MonadTokenTrade {
   signature            String?            // Transaction hash
   blockNumber          String             @map("block_number")
   blockId              String             @map("block_id")
-  commitState          String             @map("commit_state") // Track which phase this trade was recorded in
+  commitState          CommitState        @map("commit_state") // Track which phase this trade was recorded in
   trader               String
   isBuy                Boolean            @map("is_buy")
   
-  // Monad uses WMON (wrapped MON) instead of SOL
-  wmonAmount           Decimal            @map("wmon_amount") @db.Decimal(30, 9)
-  tokenAmount          Decimal            @map("token_amount") @db.Decimal(30, 9)
-  pricePerToken        Decimal            @map("price_per_token") @db.Decimal(30, 9)
-  usdAmount            Decimal            @map("usd_amount") @db.Decimal(20, 2)
+  // Monad uses WMON (wrapped MON) instead of SOL - store human 18-decimal values
+  wmonAmount           Decimal            @map("wmon_amount") @db.Decimal(38, 18)     // WMON (human, 18)
+  tokenAmount          Decimal            @map("token_amount") @db.Decimal(38, 18)    // TOK (human, 18)
+  pricePerToken        Decimal            @map("price_per_token") @db.Decimal(38, 18) // MON per TOK (human)
+  usdAmount            Decimal            @map("usd_amount") @db.Decimal(30, 2)       // USD amounts
   
   isCreatorTrade       Boolean            @default(false) @map("is_creator_trade")
   timestamp            DateTime
   curveProgress        Float?             @map("curve_progress")
-  marketCap            Decimal?           @map("market_cap") @db.Decimal(20, 2)
-  liquidityUsd         Decimal?           @map("liquidity_usd") @db.Decimal(20, 2)
+  marketCap            Decimal?           @map("market_cap") @db.Decimal(30, 2)       // Market cap in USD
+  liquidityUsd         Decimal?           @map("liquidity_usd") @db.Decimal(30, 2)   // Liquidity in USD
   
-  // Monad bonding curve reserves (4 reserves instead of 2)
-  reserve1             String?            // Virtual token reserves
-  reserve2             String?            // Virtual WMON reserves  
-  reserve3             String?            // Real token reserves
-  reserve4             String?            // Real WMON reserves
+  // Nad.fun curve reserves (human, 18). **Order matters**:
+  // reserve1=realMon, reserve2=realToken, reserve3=virtualMon, reserve4=virtualToken
+  reserve1             Decimal?           @db.Decimal(38, 18) // Real MON reserve
+  reserve2             Decimal?           @db.Decimal(38, 18) // Real token reserve  
+  reserve3             Decimal?           @db.Decimal(38, 18) // Virtual MON reserve
+  reserve4             Decimal?           @db.Decimal(38, 18) // Virtual token reserve
   
-  usdSpotPrice         Decimal?           @map("usd_spot_price") @db.Decimal(20, 9)
+  usdSpotPrice         Decimal?           @map("usd_spot_price") @db.Decimal(38, 18)  // USD per token
   createdAt            DateTime           @default(now()) @map("created_at")
   updatedAt            DateTime           @updatedAt @map("updated_at")
 
@@ -182,13 +190,13 @@ model MonadTokenTradeStats {
   id               Int                @id @default(autoincrement())
   tokenAddress     String             @unique @map("token_address")
   totalTxCount     Int                @default(0) @map("total_tx_count")
-  totalWmonVolume  Decimal            @default(0) @map("total_wmon_volume") @db.Decimal(30, 9)
+  totalWmonVolume  Decimal            @default(0) @map("total_wmon_volume") @db.Decimal(38, 18) // WMON volume (human)
   totalUsdVolume   Decimal            @default(0) @map("total_usd_volume") @db.Decimal(30, 2)
   buyCount         Int                @default(0) @map("buy_count")
   sellCount        Int                @default(0) @map("sell_count")
   buyVolumeUsd     Decimal            @default(0) @map("buy_volume_usd") @db.Decimal(30, 2)
   sellVolumeUsd    Decimal            @default(0) @map("sell_volume_usd") @db.Decimal(30, 2)
-  creatorHoldings  Decimal            @default(0) @map("creator_holdings") @db.Decimal(30, 9)
+  creatorHoldings  Decimal            @default(0) @map("creator_holdings") @db.Decimal(38, 18) // Token holdings (human)
   creatorSold      Boolean            @default(false) @map("creator_sold")
   lastTradeTime    DateTime           @map("last_trade_time")
   
@@ -218,22 +226,22 @@ model ArchivedMonadTokenTrade {
   signature            String?
   blockNumber          String             @map("block_number")
   blockId              String             @map("block_id")
-  commitState          String             @map("commit_state")
+  commitState          CommitState        @map("commit_state")
   trader               String
   isBuy                Boolean            @map("is_buy")
-  wmonAmount           Decimal            @map("wmon_amount") @db.Decimal(30, 9)
-  tokenAmount          Decimal            @map("token_amount") @db.Decimal(30, 9)
-  pricePerToken        Decimal            @map("price_per_token") @db.Decimal(30, 9)
-  usdAmount            Decimal            @map("usd_amount") @db.Decimal(20, 2)
+  wmonAmount           Decimal            @map("wmon_amount") @db.Decimal(38, 18)     // WMON (human, 18)
+  tokenAmount          Decimal            @map("token_amount") @db.Decimal(38, 18)    // TOK (human, 18)
+  pricePerToken        Decimal            @map("price_per_token") @db.Decimal(38, 18) // MON per TOK (human)
+  usdAmount            Decimal            @map("usd_amount") @db.Decimal(28, 2)       // USD amounts
   isCreatorTrade       Boolean            @default(false) @map("is_creator_trade")
   timestamp            DateTime
   curveProgress        Float?             @map("curve_progress")
-  marketCap            Decimal?           @map("market_cap") @db.Decimal(20, 2)
-  reserve1             String?
-  reserve2             String?
-  reserve3             String?
-  reserve4             String?
-  usdSpotPrice         Decimal?           @map("usd_spot_price") @db.Decimal(20, 9)
+  marketCap            Decimal?           @map("market_cap") @db.Decimal(28, 2)       // Market cap in USD
+  reserve1             Decimal?           @db.Decimal(38, 18) // Real MON reserve
+  reserve2             Decimal?           @db.Decimal(38, 18) // Real token reserve
+  reserve3             Decimal?           @db.Decimal(38, 18) // Virtual MON reserve
+  reserve4             Decimal?           @db.Decimal(38, 18) // Virtual token reserve
+  usdSpotPrice         Decimal?           @map("usd_spot_price") @db.Decimal(38, 18)  // USD per token
   createdAt            DateTime           @default(now()) @map("created_at")
   updatedAt            DateTime           @updatedAt @map("updated_at")
 

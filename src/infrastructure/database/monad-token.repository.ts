@@ -43,7 +43,7 @@ export class MonadTokenRepositoryImpl implements MonadTokenRepository {
             await this.prisma.monadLaunchedToken.upsert({
                 where: { token: token.address },
                 update: {
-                    commitState: token.commitState,
+                    commitState: token.commitState as any,
                     updatedAt: new Date()
                 },
                 create: {
@@ -54,7 +54,7 @@ export class MonadTokenRepositoryImpl implements MonadTokenRepository {
                     bondingCurve: token.bondingCurve,
                     blockNumber: token.blockNumber.toString(),
                     blockId: token.blockId,
-                    commitState: token.commitState,
+                    commitState: token.commitState as any,
                     timestamp: token.timestamp,
                     name: token.name,
                     symbol: token.symbol
@@ -193,7 +193,7 @@ export class MonadTokenRepositoryImpl implements MonadTokenRepository {
                             bondingCurve: 'unknown',
                             blockNumber: trade.blockNumber,
                             blockId: trade.blockId || 'unknown',
-                            commitState: trade.commitState,
+                            commitState: trade.commitState as any,
                             timestamp: trade.timestamp
                         }
                     });
@@ -207,61 +207,35 @@ export class MonadTokenRepositoryImpl implements MonadTokenRepository {
                 }
             }
 
-            // Convert BigInt values to safe numbers - same approach as PumpFun
-            const wmonAmount = this.bigIntToNumber(trade.wmonAmount, 9);
-            const tokenAmount = this.bigIntToNumber(trade.tokenAmount, 9);
-            const pricePerToken = this.bigIntToNumber(trade.pricePerToken, 9);
+            // Replace your 9-dec conversions with 18
+            const wmonAmount = this.bigIntToNumber(trade.wmonAmount, 18);     // WMON
+            const tokenAmount = this.bigIntToNumber(trade.tokenAmount, 18);    // TOKEN
+            const pricePerTokenWmon = this.bigIntToNumber(trade.pricePerToken, 18);  // WMON per token
 
-            // Validate and cap all values to reasonable limits
-            const maxDecimal30_9 = 999999999999999999; // For Decimal(30,9) - more conservative limit
-            const maxDecimal20_2 = 999999999999.99; // For Decimal(20,2) - 1 trillion max (reasonable for market cap)
-            const maxDecimal20_9 = 999999.999999999; // For Decimal(20,9) - 1 million max (reasonable for token price)
+            // usdAmount already computed in the processor from WMON * price
+            const usdAmount = trade.usdAmount ?? 0;
 
-            // Cap the main trade values
-            const cappedWmonAmount = Math.min(wmonAmount, maxDecimal30_9);
-            const cappedTokenAmount = Math.min(tokenAmount, maxDecimal30_9);
-            const cappedPricePerToken = Math.min(pricePerToken, maxDecimal30_9);
+            // Spot price: USD per 1 token (guard divide-by-zero)
+            const usdSpotPrice = tokenAmount > 0 ? (usdAmount / tokenAmount) : 0;
 
-            // SIMPLE FIXED CALCULATION - No more complex logic that breaks
-            console.log(`[🔍 FIXED] Using simple calculation instead of broken complex one`);
-            
-            // Use the USD amount from trade processor (should be correct)
-            const usdAmount = trade.usdAmount || 0;
-            console.log(`[🔍 FIXED] trade.usdAmount: ${usdAmount}`);
-            
-            // Simple USD spot price: usd amount / token amount  
-            const usdSpotPrice = cappedTokenAmount > 0 ? usdAmount / cappedTokenAmount : 0;
-            console.log(`[🔍 FIXED] calculated usdSpotPrice: ${usdSpotPrice}`);
-            
-            // Simple market cap: assume 1B token supply * price per token
-            const marketCap = usdSpotPrice * 1000000000; // 1B tokens
-            console.log(`[🔍 FIXED] calculated marketCap: ${marketCap}`);
-            
-            // Simple liquidity: 10% of market cap
-            const liquidityUsd = marketCap * 0.1;
-            console.log(`[🔍 FIXED] calculated liquidityUsd: ${liquidityUsd}`);
-
-            // Log if values were capped
-            if (wmonAmount !== cappedWmonAmount || tokenAmount !== cappedTokenAmount || pricePerToken !== cappedPricePerToken) {
-                console.warn(`[⚠️ DB] Large values capped for database storage:`, {
-                    original: { wmonAmount, tokenAmount, pricePerToken },
-                    capped: { cappedWmonAmount, cappedTokenAmount, cappedPricePerToken }
-                });
-            }
+            // Simple market cap and liquidity - keep sane, avoid arbitrary caps
+            const marketCap = usdAmount * 1000; // Simple multiplier for now
+            const liquidityUsd = marketCap * 0.1; // 10% of market cap
+            console.log(`[🔍 CORRECTED] wmonAmount: ${wmonAmount}, tokenAmount: ${tokenAmount}`);
+            console.log(`[🔍 CORRECTED] usdAmount: ${usdAmount}, usdSpotPrice: ${usdSpotPrice}`);
 
             const curveProgress = this.calculateCurveProgress(trade.reserves);
 
             // Debug logging for all values being inserted
-            console.log(`[🔍 DB] CALCULATED VALUES:`, {
-                'trade.usdAmount (input)': trade.usdAmount,
-                'typeof trade.usdAmount': typeof trade.usdAmount,
-                'cappedTokenAmount': cappedTokenAmount,
-                'usdAmount (final)': usdAmount,
-                'usdSpotPrice (calculated)': usdSpotPrice,
-                'marketCap (calculated)': marketCap,
-                'liquidityUsd (calculated)': liquidityUsd,
-                'curveProgress': curveProgress,
-                'maxDecimal20_2': maxDecimal20_2
+            console.log(`[🔍 DB] FINAL VALUES:`, {
+                'wmonAmount': wmonAmount,
+                'tokenAmount': tokenAmount,
+                'pricePerTokenWmon': pricePerTokenWmon,
+                'usdAmount': usdAmount,
+                'usdSpotPrice': usdSpotPrice,
+                'marketCap': marketCap,
+                'liquidityUsd': liquidityUsd,
+                'curveProgress': curveProgress
             });
 
             // Insert trade using Prisma model - same pattern as PumpFun
@@ -272,30 +246,34 @@ export class MonadTokenRepositoryImpl implements MonadTokenRepository {
                         signature: trade.transactionHash,
                         blockNumber: trade.blockNumber,
                         blockId: trade.blockId || 'unknown',
-                        commitState: trade.commitState,
+                        commitState: trade.commitState as any,
                         trader: trade.trader,
                         isBuy: trade.isBuy,
-                        wmonAmount: cappedWmonAmount,
-                        tokenAmount: cappedTokenAmount,
-                        pricePerToken: cappedPricePerToken,
+                        // store human units (18-dec scaled already)
+                        wmonAmount: wmonAmount,
+                        tokenAmount: tokenAmount,
+                        // store MON per token in human units (not the 18-dec scaled bigint)
+                        pricePerToken: pricePerTokenWmon,
                         usdAmount: usdAmount,
                         isCreatorTrade: false, // TODO: Determine from creator data
                         timestamp: trade.timestamp,
                         curveProgress: curveProgress,
                         marketCap: marketCap,
                         liquidityUsd: liquidityUsd,
-                        reserve1: trade.reserves.reserve1.toString(),
-                        reserve2: trade.reserves.reserve2.toString(),
-                        reserve3: trade.reserves.reserve3.toString(),
-                        reserve4: trade.reserves.reserve4.toString(),
+                        // reserves as Decimal(38,18) in the same order used in code:
+                        // reserve1=realMon, reserve2=realToken, reserve3=virtualMon, reserve4=virtualToken
+                        reserve1: this.bigIntToNumber(trade.reserves.reserve1, 18),
+                        reserve2: this.bigIntToNumber(trade.reserves.reserve2, 18),
+                        reserve3: this.bigIntToNumber(trade.reserves.reserve3, 18),
+                        reserve4: this.bigIntToNumber(trade.reserves.reserve4, 18),
                         usdSpotPrice: usdSpotPrice
                     }
                 });
             } catch (dbError) {
                 console.error(`[❌ DB] Database insertion failed with values:`, {
-                    cappedWmonAmount,
-                    cappedTokenAmount,
-                    cappedPricePerToken,
+                    wmonAmount,
+                    tokenAmount,
+                    pricePerTokenWmon,
                     usdAmount,
                     marketCap,
                     liquidityUsd,
@@ -318,8 +296,8 @@ export class MonadTokenRepositoryImpl implements MonadTokenRepository {
                 blockNumber: trade.blockNumber,
                 blockId: trade.blockId,
                 commitState: trade.commitState,
-                wmonAmount: this.bigIntToNumber(trade.wmonAmount, 9),
-                tokenAmount: this.bigIntToNumber(trade.tokenAmount, 9)
+                wmonAmount: this.bigIntToNumber(trade.wmonAmount, 18),
+                tokenAmount: this.bigIntToNumber(trade.tokenAmount, 18)
             });
             throw error;
         }
@@ -353,14 +331,14 @@ export class MonadTokenRepositoryImpl implements MonadTokenRepository {
                 tokenAddress: dbTrade.tokenAddress,
                 trader: dbTrade.trader,
                 isBuy: dbTrade.isBuy,
-                wmonAmount: this.numberToBigInt(Number(dbTrade.wmonAmount), 9),
-                tokenAmount: this.numberToBigInt(Number(dbTrade.tokenAmount), 9),
-                pricePerToken: this.numberToBigInt(Number(dbTrade.pricePerToken), 9),
+                wmonAmount: this.numberToBigInt(Number(dbTrade.wmonAmount), 18),
+                tokenAmount: this.numberToBigInt(Number(dbTrade.tokenAmount), 18),
+                pricePerToken: this.numberToBigInt(Number(dbTrade.pricePerToken), 18),
                 reserves: {
-                    reserve1: BigInt(dbTrade.reserve1 || '0'),
-                    reserve2: BigInt(dbTrade.reserve2 || '0'),
-                    reserve3: BigInt(dbTrade.reserve3 || '0'),
-                    reserve4: BigInt(dbTrade.reserve4 || '0')
+                    reserve1: BigInt(Number(dbTrade.reserve1 || 0) * 1e18),
+                    reserve2: BigInt(Number(dbTrade.reserve2 || 0) * 1e18),
+                    reserve3: BigInt(Number(dbTrade.reserve3 || 0) * 1e18),
+                    reserve4: BigInt(Number(dbTrade.reserve4 || 0) * 1e18)
                 },
                 blockNumber: dbTrade.blockNumber,
                 blockId: dbTrade.blockId,
@@ -380,19 +358,37 @@ export class MonadTokenRepositoryImpl implements MonadTokenRepository {
     }
 
     private calculateCurveProgress(reserves: { reserve1: bigint; reserve2: bigint; reserve3: bigint; reserve4: bigint }): number {
-        // Calculate bonding curve progress based on reserves
-        // This is a simplified calculation - adjust based on Monad's actual curve formula
+        // nad.fun bonding curve progress calculation
+        // Structure: (realMonReserve, realTokenReserve, virtualMonReserve, virtualTokenReserve)
         try {
-            const totalReserves = Number(reserves.reserve1) + Number(reserves.reserve2) + Number(reserves.reserve3) + Number(reserves.reserve4);
-            if (totalReserves === 0) return 0;
+            const realTokenReserve = this.bigIntToNumber(reserves.reserve2, 18);
+            const virtualTokenReserve = this.bigIntToNumber(reserves.reserve4, 18);
 
-            // Simple progress calculation - real reserves vs virtual reserves
-            const realReserves = Number(reserves.reserve3) + Number(reserves.reserve4);
-            const progress = Math.min(realReserves / totalReserves, 1.0);
+            // Progress is based on how much of the virtual token supply has been sold
+            // Migration happens when 80% of 1B tokens are sold (800M tokens)
+            const tokensSold = realTokenReserve; // Real tokens sold from the curve
+            const migrationThreshold = virtualTokenReserve * 0.8; // 80% of 1B supply
+
+            if (virtualTokenReserve === 0) return 0;
+
+            const progress = Math.min(tokensSold / migrationThreshold, 1.0);
             return Math.round(progress * 10000) / 100; // Return as percentage with 2 decimal places
         } catch (error) {
-            console.warn('[⚠️ DB] Failed to calculate curve progress, using 0:', error);
-            return 0;
+            console.warn('[⚠️ DB] Failed to calculate nad.fun curve progress, using fallback:', error);
+
+            // Fallback: simple calculation based on real vs virtual reserves
+            try {
+                const realReserves = this.bigIntToNumber(reserves.reserve1, 18) + this.bigIntToNumber(reserves.reserve2, 18);
+                const virtualReserves = this.bigIntToNumber(reserves.reserve3, 18) + this.bigIntToNumber(reserves.reserve4, 18);
+                const totalReserves = realReserves + virtualReserves;
+
+                if (totalReserves === 0) return 0;
+                const progress = Math.min(realReserves / totalReserves, 1.0);
+                return Math.round(progress * 10000) / 100;
+            } catch (fallbackError) {
+                console.warn('[⚠️ DB] Fallback calculation also failed, using 0');
+                return 0;
+            }
         }
     }
 
@@ -408,14 +404,14 @@ export class MonadTokenRepositoryImpl implements MonadTokenRepository {
                 tokenAddress: dbTrade.tokenAddress,
                 trader: dbTrade.trader,
                 isBuy: dbTrade.isBuy,
-                wmonAmount: this.numberToBigInt(Number(dbTrade.wmonAmount), 9),
-                tokenAmount: this.numberToBigInt(Number(dbTrade.tokenAmount), 9),
-                pricePerToken: this.numberToBigInt(Number(dbTrade.pricePerToken), 9),
+                wmonAmount: this.numberToBigInt(Number(dbTrade.wmonAmount), 18),
+                tokenAmount: this.numberToBigInt(Number(dbTrade.tokenAmount), 18),
+                pricePerToken: this.numberToBigInt(Number(dbTrade.pricePerToken), 18),
                 reserves: {
-                    reserve1: BigInt(dbTrade.reserve1 || '0'),
-                    reserve2: BigInt(dbTrade.reserve2 || '0'),
-                    reserve3: BigInt(dbTrade.reserve3 || '0'),
-                    reserve4: BigInt(dbTrade.reserve4 || '0')
+                    reserve1: BigInt(Number(dbTrade.reserve1 || 0) * 1e18),
+                    reserve2: BigInt(Number(dbTrade.reserve2 || 0) * 1e18),
+                    reserve3: BigInt(Number(dbTrade.reserve3 || 0) * 1e18),
+                    reserve4: BigInt(Number(dbTrade.reserve4 || 0) * 1e18)
                 },
                 blockNumber: dbTrade.blockNumber,
                 blockId: dbTrade.blockId,

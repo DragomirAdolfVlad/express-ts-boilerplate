@@ -6,11 +6,11 @@
  */
 
 import { MonadToken, MonadTrade, MonadTokenData, MonadTradeData } from '../../domain/entities/monad-token.entity';
-import { 
-  CurveStateUpdateEvent, 
-  CurveTradeEvent, 
-  CurveTokenEvent, 
-  CurvePairEvent 
+import {
+  CurveStateUpdateEvent,
+  CurveTradeEvent,
+  CurveTokenEvent,
+  CurvePairEvent
 } from '../../domain/entities/curve-events.entity';
 
 export interface ProcessedTokenLaunch {
@@ -32,7 +32,7 @@ export interface WmonPriceProvider {
 export class MonadTokenProcessorService {
   constructor(
     private readonly wmonPriceProvider: WmonPriceProvider
-  ) {}
+  ) { }
 
   /**
    * Process a curve token event (new token launch)
@@ -40,7 +40,7 @@ export class MonadTokenProcessorService {
   async processTokenLaunch(event: CurveTokenEvent): Promise<ProcessedTokenLaunch> {
     // Extract creator from event if available
     const creator = (event as any).creator || 'unknown';
-    
+
     const tokenData: MonadTokenData = {
       address: event.tokenAddress,
       creator: creator, // Use extracted creator from blockchain event
@@ -55,7 +55,7 @@ export class MonadTokenProcessorService {
 
     // Only persist finalized token launches for confirmed data
     const shouldPersist = token.isFinalized;
-    const reason = shouldPersist 
+    const reason = shouldPersist
       ? 'Token launch confirmed (finalized)'
       : `Token launch pending (${event.phase})`;
 
@@ -70,12 +70,12 @@ export class MonadTokenProcessorService {
    * Process a curve trade event
    */
   async processTrade(
-    tradeEvent: CurveTradeEvent, 
+    tradeEvent: CurveTradeEvent,
     stateEvent?: CurveStateUpdateEvent
   ): Promise<ProcessedTrade> {
     // Determine if this is a buy or sell based on amounts
     const isBuy = this.determineTradDirection(tradeEvent);
-    
+
     // Get current WMON price for USD calculations (with fallback)
     let wmonPriceUsd: number;
     try {
@@ -84,37 +84,59 @@ export class MonadTokenProcessorService {
       console.warn('[⚠️ PRICE] WMON price unavailable, using fallback of $3.26');
       wmonPriceUsd = 3.26; // Fallback price for USD calculations
     }
-    
-    // Calculate price per token
-    const pricePerToken = this.calculatePricePerToken(
-      tradeEvent.tradeAmounts.amount1,
-      tradeEvent.tradeAmounts.amount2,
-      isBuy
-    );
 
-    // Log the trade with USD value
-    const usdValue = (Number(tradeEvent.tradeAmounts.amount2) / 1e18) * wmonPriceUsd;
-    console.log(`[💱 TRADE] ${isBuy ? 'BUY' : 'SELL'} ${tradeEvent.tokenAddress.slice(0, 8)}... - $${usdValue.toFixed(2)} USD`);
+    // Calculate price per token (old method - will be replaced)
+
+    // Sanity logs - check raw amounts first
+    console.log('[RAW EVENT]', {
+      a1_type: typeof tradeEvent.tradeAmounts.amount1,
+      a2_type: typeof tradeEvent.tradeAmounts.amount2,
+      amount1_str: tradeEvent.tradeAmounts.amount1.toString(), // expect ~1e17–1e19 for small WMON
+      amount2_str: tradeEvent.tradeAmounts.amount2.toString(), // expect huge token units
+    });
+
+    // CORRECTED FIELD MAPPING
+    const tokenAmountWei = tradeEvent.tradeAmounts.amount2; // TOKEN (wei/base units)
+    const wmonAmountWei = tradeEvent.tradeAmounts.amount1;  // WMON (wei)
+
+    // price per token in WMON (scaled to 1e18)
+    const pricePerToken = tokenAmountWei === 0n
+      ? 0n
+      : (wmonAmountWei * 10n ** 18n) / tokenAmountWei;
+
+    // USD value from WMON only
+    const wmonAmount = Number(wmonAmountWei) / 1e18;   // 18 decimals
+    const usdValue = wmonAmount * wmonPriceUsd;
+
+    console.log('[PROC CHECK]', {
+      wmonWei: wmonAmountWei.toString(),
+      tokenWei: tokenAmountWei.toString(),
+      wmon: wmonAmount,
+      token: Number(tokenAmountWei) / 1e18,
+      usdValue: usdValue
+    });
+
+    console.log(`[💱 TRADE] ${isBuy ? 'BUY' : 'SELL'} ${tradeEvent.tokenAddress.slice(0, 8)}... - ${wmonAmount.toFixed(4)} WMON ($${usdValue.toFixed(2)} USD)`);
 
     const tradeData: MonadTradeData = {
       tokenAddress: tradeEvent.tokenAddress,
       trader: tradeEvent.traderAddress,
       isBuy,
-      wmonAmount: tradeEvent.tradeAmounts.amount2, // Assuming amount2 is WMON
-      tokenAmount: tradeEvent.tradeAmounts.amount1, // Assuming amount1 is token
+      wmonAmount: wmonAmountWei,   // ✅ raw WMON wei
+      tokenAmount: tokenAmountWei, // ✅ raw TOKEN units
       pricePerToken,
-      usdAmount: usdValue, // Include calculated USD amount
+      usdAmount: usdValue,
       reserves: stateEvent ? {
-        reserve1: stateEvent.tokenReserves.reserve1,
-        reserve2: stateEvent.tokenReserves.reserve2,
-        reserve3: stateEvent.tokenReserves.reserve3,
-        reserve4: stateEvent.tokenReserves.reserve4
+        // if your chain uses (realMon, realToken, virtualMon, virtualToken)
+        reserve1: stateEvent.tokenReserves.reserve1, // realMon (WMON)
+        reserve2: stateEvent.tokenReserves.reserve2, // realToken
+        reserve3: stateEvent.tokenReserves.reserve3, // virtualMon
+        reserve4: stateEvent.tokenReserves.reserve4, // virtualToken
       } : {
-        // Estimate reserves from trade data when state event is missing
-        reserve1: BigInt(1000000000) * BigInt(1e18), // 1B token virtual supply
-        reserve2: BigInt(30) * BigInt(1e18), // 30 WMON virtual reserves
-        reserve3: tradeEvent.tradeAmounts.amount1, // Real token reserves from trade
-        reserve4: tradeEvent.tradeAmounts.amount2  // Real WMON reserves from trade
+        reserve1: wmonAmountWei,
+        reserve2: tokenAmountWei,
+        reserve3: BigInt(432) * 10n ** 18n,
+        reserve4: 1_000_000_000n * 10n ** 18n,
       },
       blockNumber: tradeEvent.blockNumber.toString(),
       blockId: 'unknown', // Will be set by the adapter
@@ -127,7 +149,7 @@ export class MonadTokenProcessorService {
 
     // Only persist finalized trades for confirmed transactions
     const shouldPersist = trade.isFinalized;
-    const reason = shouldPersist 
+    const reason = shouldPersist
       ? 'Trade confirmed (finalized)'
       : `Trade pending (${tradeEvent.phase})`;
 
@@ -156,7 +178,7 @@ export class MonadTokenProcessorService {
 
     // Pair events are important - they indicate DEX graduation
     const shouldPersist = token.isFinalized;
-    const reason = shouldPersist 
+    const reason = shouldPersist
       ? 'Token graduated to DEX (finalized)'
       : `Token graduation pending (${event.phase})`;
 
@@ -184,22 +206,14 @@ export class MonadTokenProcessorService {
     return tradeEvent.tradeAmounts.amount1 > 0n;
   }
 
-  /**
-   * Calculate price per token from trade amounts
-   */
-  private calculatePricePerToken(tokenAmount: bigint, wmonAmount: bigint, _isBuy: boolean): bigint {
-    if (tokenAmount === 0n) return 0n;
-    
-    // Price per token = WMON amount / token amount
-    return (wmonAmount * BigInt(1e18)) / tokenAmount;
-  }
+  // calculatePricePerToken method removed - now calculated inline with corrected field mapping
 
   /**
    * Check if we should process this event based on commit state
    */
   shouldProcessEvent(commitState: string, requireFinalized: boolean = true): boolean {
     if (!requireFinalized) return true;
-    
+
     return commitState === 'finalized' || commitState === 'verified';
   }
 
@@ -240,9 +254,9 @@ export class MonadTokenProcessorService {
 
     for (const trade of trades) {
       const volumeWmon = Number(trade.wmonAmount) / 1e18;
-      
+
       totalVolume += volumeWmon;
-      
+
       if (trade.isBuy) {
         buyVolume += volumeWmon;
         buyCount++;
@@ -250,7 +264,7 @@ export class MonadTokenProcessorService {
         sellVolume += volumeWmon;
         sellCount++;
       }
-      
+
       if (trade.timestamp > lastTradeTime) {
         lastTradeTime = trade.timestamp;
       }
