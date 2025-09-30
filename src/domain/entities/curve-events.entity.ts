@@ -57,7 +57,11 @@ export class CurveTradeEvent extends BlockchainEvent {
     private readonly amounts: {
       amount1: bigint;
       amount2: bigint;
-    }
+      wmonAmount?: bigint;
+      tokenAmount?: bigint;
+      isBuy?: boolean;
+    },
+    private readonly tradeType?: string
   ) {
     super(data);
   }
@@ -76,6 +80,10 @@ export class CurveTradeEvent extends BlockchainEvent {
 
   get tradeAmounts(): typeof this.amounts {
     return this.amounts;
+  }
+
+  get eventType(): string | undefined {
+    return this.tradeType;
   }
 
   toJSON(): Record<string, any> {

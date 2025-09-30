@@ -236,7 +236,7 @@ export class MonadTokenRepositoryImpl implements MonadTokenRepository {
             await this.ensureTokenExists({
                 tokenAddress: trade.tokenAddress,
                 creator: trade.creator || 'unknown',
-                bondingCurve: trade.bondingCurve || 'unknown',
+                bondingCurve: process.env['CONTRACT_ADDRESS'] || '0x760AfE86e5de5fa0Ee542fc7B7B713e1c5425701', // Real NAD.FUN bonding curve
                 blockNumber: trade.blockNumber,
                 blockId: trade.blockId || 'unknown',
                 commitState: trade.commitState,
@@ -296,23 +296,40 @@ export class MonadTokenRepositoryImpl implements MonadTokenRepository {
                         commitState: trade.commitState as any,
                         trader: trade.trader,
                         isBuy: trade.isBuy,
-                        // store human units (18-dec scaled already)
+                        
+                        // Trade amounts (human readable)
                         wmonAmount: wmonAmount,
                         tokenAmount: tokenAmount,
-                        // store MON per token in human units (not the 18-dec scaled bigint)
                         pricePerToken: pricePerTokenWmon,
                         usdAmount: usdAmount,
+                        
+                        // Side-agnostic amounts
+                        amountIn: trade.isBuy ? wmonAmount : tokenAmount,
+                        amountOut: trade.isBuy ? tokenAmount : wmonAmount,
+                        inAsset: trade.isBuy ? 'WMON' : 'TOKEN',
+                        
+                        // Event metadata
+                        eventSignature: trade.eventSignature || null,
+                        
+                        // Trading context
+                        source: 'curve',
+                        poolAddress: null, // Curve trades don't have pools
                         isCreatorTrade: false, // TODO: Determine from creator data
                         timestamp: trade.timestamp,
+                        
+                        // Market data
                         curveProgress: curveProgress,
                         marketCap: marketCap,
                         liquidityUsd: liquidityUsd,
-                        // reserves as Decimal(38,18) in the same order used in code:
-                        // reserve1=realMon, reserve2=realToken, reserve3=virtualMon, reserve4=virtualToken
-                        reserve1: this.bigIntToNumber(trade.reserves.reserve1, 18),
-                        reserve2: this.bigIntToNumber(trade.reserves.reserve2, 18),
-                        reserve3: this.bigIntToNumber(trade.reserves.reserve3, 18),
-                        reserve4: this.bigIntToNumber(trade.reserves.reserve4, 18),
+                        
+                        // Raw amounts for debugging
+                        amountWmonRaw: wmonAmount,
+                        amountTokenRaw: tokenAmount,
+                        
+                        // Virtual reserves (constants for bonding curve)
+                        virtualWmonReserve: this.bigIntToNumber(trade.reserves.reserve4, 18), // Virtual WMON
+                        virtualTokenReserve: this.bigIntToNumber(trade.reserves.reserve3, 18), // Virtual token
+                        
                         usdSpotPrice: usdSpotPrice
                     },
                     update: {
@@ -324,10 +341,8 @@ export class MonadTokenRepositoryImpl implements MonadTokenRepository {
                         curveProgress: curveProgress,
                         marketCap: marketCap,
                         liquidityUsd: liquidityUsd,
-                        reserve1: this.bigIntToNumber(trade.reserves.reserve1, 18),
-                        reserve2: this.bigIntToNumber(trade.reserves.reserve2, 18),
-                        reserve3: this.bigIntToNumber(trade.reserves.reserve3, 18),
-                        reserve4: this.bigIntToNumber(trade.reserves.reserve4, 18)
+                        virtualWmonReserve: this.bigIntToNumber(trade.reserves.reserve4, 18),
+                        virtualTokenReserve: this.bigIntToNumber(trade.reserves.reserve3, 18)
                     }
                 });
             } catch (dbError) {
@@ -396,10 +411,10 @@ export class MonadTokenRepositoryImpl implements MonadTokenRepository {
                 tokenAmount: this.numberToBigInt(Number(dbTrade.tokenAmount), 18),
                 pricePerToken: this.numberToBigInt(Number(dbTrade.pricePerToken), 18),
                 reserves: {
-                    reserve1: BigInt(Number(dbTrade.reserve1 || 0) * 1e18),
-                    reserve2: BigInt(Number(dbTrade.reserve2 || 0) * 1e18),
-                    reserve3: BigInt(Number(dbTrade.reserve3 || 0) * 1e18),
-                    reserve4: BigInt(Number(dbTrade.reserve4 || 0) * 1e18)
+                    reserve1: BigInt(0), // Real WMON reserve - not stored in current schema
+                    reserve2: BigInt(0), // Real token reserve - not stored in current schema
+                    reserve3: this.numberToBigInt(Number(dbTrade.virtualWmonReserve || 0), 18),
+                    reserve4: this.numberToBigInt(Number(dbTrade.virtualTokenReserve || 0), 18)
                 },
                 blockNumber: dbTrade.blockNumber,
                 blockId: dbTrade.blockId,
@@ -469,10 +484,10 @@ export class MonadTokenRepositoryImpl implements MonadTokenRepository {
                 tokenAmount: this.numberToBigInt(Number(dbTrade.tokenAmount), 18),
                 pricePerToken: this.numberToBigInt(Number(dbTrade.pricePerToken), 18),
                 reserves: {
-                    reserve1: BigInt(Number(dbTrade.reserve1 || 0) * 1e18),
-                    reserve2: BigInt(Number(dbTrade.reserve2 || 0) * 1e18),
-                    reserve3: BigInt(Number(dbTrade.reserve3 || 0) * 1e18),
-                    reserve4: BigInt(Number(dbTrade.reserve4 || 0) * 1e18)
+                    reserve1: BigInt(0), // Real WMON reserve - not stored in current schema
+                    reserve2: BigInt(0), // Real token reserve - not stored in current schema
+                    reserve3: this.numberToBigInt(Number(dbTrade.virtualWmonReserve || 0), 18),
+                    reserve4: this.numberToBigInt(Number(dbTrade.virtualTokenReserve || 0), 18)
                 },
                 blockNumber: dbTrade.blockNumber,
                 blockId: dbTrade.blockId,

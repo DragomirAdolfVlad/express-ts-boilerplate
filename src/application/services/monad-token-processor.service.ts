@@ -12,6 +12,12 @@ import {
   CurveTokenEvent,
   CurvePairEvent
 } from '../../domain/entities/curve-events.entity';
+import { 
+  weiToHuman, 
+  calculatePrice, 
+  logAmountComparison,
+  validateReserves
+} from '../../utils/bigint-scaling';
 
 export interface ProcessedTokenLaunch {
   token: MonadToken;
@@ -73,7 +79,7 @@ export class MonadTokenProcessorService {
     tradeEvent: CurveTradeEvent,
     stateEvent?: CurveStateUpdateEvent
   ): Promise<ProcessedTrade> {
-    // Determine if this is a buy or sell based on amounts
+    // Determine trade direction using multiple methods for reliability
     const isBuy = this.determineTradDirection(tradeEvent);
 
     // Get current WMON price for USD calculations (with fallback)
@@ -95,26 +101,55 @@ export class MonadTokenProcessorService {
       amount2_str: tradeEvent.tradeAmounts.amount2.toString(), // expect huge token units
     });
 
-    // CORRECTED FIELD MAPPING
-    const tokenAmountWei = tradeEvent.tradeAmounts.amount2; // TOKEN (wei/base units)
-    const wmonAmountWei = tradeEvent.tradeAmounts.amount1;  // WMON (wei)
+    // NAD.FUN DIRECTIONAL MAPPING - Both WMON and tokens use 18 decimals
+    // BUY: user sends WMON → amount1 = WMON, amount2 = TOKEN  
+    // SELL: user sends TOKEN → amount1 = TOKEN, amount2 = WMON
+    
+    // Store raw amounts for debugging
+    const rawAmount1 = tradeEvent.tradeAmounts.amount1;
+    const rawAmount2 = tradeEvent.tradeAmounts.amount2;
+    
+    const wmonAmountWei = tradeEvent.tradeAmounts.wmonAmount || 
+      (isBuy ? tradeEvent.tradeAmounts.amount1 : tradeEvent.tradeAmounts.amount2);
+    const tokenAmountWei = tradeEvent.tradeAmounts.tokenAmount || 
+      (isBuy ? tradeEvent.tradeAmounts.amount2 : tradeEvent.tradeAmounts.amount1);
+    
+    // Log directional amounts for verification
+    logAmountComparison(
+      'DIRECTIONAL_MAPPING', 
+      wmonAmountWei, 
+      tokenAmountWei, 
+      `${isBuy ? 'BUY' : 'SELL'} ${tradeEvent.tokenAddress.slice(0, 8)}...`
+    );
 
-    // price per token in WMON (scaled to 1e18)
-    const pricePerToken = tokenAmountWei === 0n
-      ? 0n
-      : (wmonAmountWei * 10n ** 18n) / tokenAmountWei;
+    // Calculate price per token using proper BigInt scaling
+    const pricePerTokenHuman = calculatePrice(wmonAmountWei, tokenAmountWei);
+    const pricePerToken = BigInt(Math.floor(pricePerTokenHuman * 1e18)); // Store as wei-like units
 
-    // USD value from WMON only
-    const wmonAmount = Number(wmonAmountWei) / 1e18;   // 18 decimals
+    // Convert to human readable amounts
+    const wmonAmount = weiToHuman(wmonAmountWei, 18);
+    const tokenAmount = weiToHuman(tokenAmountWei, 18);
     const usdValue = wmonAmount * wmonPriceUsd;
 
-    console.log('[PROC CHECK]', {
-      wmonWei: wmonAmountWei.toString(),
-      tokenWei: tokenAmountWei.toString(),
-      wmon: wmonAmount,
-      token: Number(tokenAmountWei) / 1e18,
-      usdValue: usdValue
+    // Sanity checks and logging
+    console.log('[PROCESSED_TRADE]', {
+      type: isBuy ? 'BUY' : 'SELL',
+      token: tradeEvent.tokenAddress.slice(0, 8) + '...',
+      wmonHuman: wmonAmount.toFixed(6),
+      tokenHuman: tokenAmount.toFixed(0),
+      priceHuman: pricePerTokenHuman.toFixed(12),
+      usdValue: usdValue.toFixed(2),
+      eventType: tradeEvent.eventType || 'unknown'
     });
+    
+    // Detect suspicious prices (>50% change would be flagged if we had previous price)
+    if (pricePerTokenHuman <= 0) {
+      console.warn('⚠️  Zero or negative price detected');
+    }
+    
+    if (pricePerTokenHuman > 0.001) {
+      console.warn('⚠️  Unusually high token price:', pricePerTokenHuman);
+    }
 
     console.log(`[💱 TRADE] ${isBuy ? 'BUY' : 'SELL'} ${tradeEvent.tokenAddress.slice(0, 8)}... - ${wmonAmount.toFixed(4)} WMON ($${usdValue.toFixed(2)} USD)`);
 
@@ -122,29 +157,39 @@ export class MonadTokenProcessorService {
       tokenAddress: tradeEvent.tokenAddress,
       trader: tradeEvent.traderAddress,
       isBuy,
-      wmonAmount: wmonAmountWei,   // ✅ raw WMON wei
-      tokenAmount: tokenAmountWei, // ✅ raw TOKEN units
+      wmonAmount: wmonAmountWei,
+      tokenAmount: tokenAmountWei,
       pricePerToken,
       usdAmount: usdValue,
+      // Store raw amounts for verification and debugging
+      amountWmonRaw: rawAmount1, // Original amount1 from blockchain
+      amountTokenRaw: rawAmount2, // Original amount2 from blockchain
       reserves: stateEvent ? {
-        // if your chain uses (realMon, realToken, virtualMon, virtualToken)
-        reserve1: stateEvent.tokenReserves.reserve1, // realMon (WMON)
-        reserve2: stateEvent.tokenReserves.reserve2, // realToken
-        reserve3: stateEvent.tokenReserves.reserve3, // virtualMon
-        reserve4: stateEvent.tokenReserves.reserve4, // virtualToken
+        reserve1: stateEvent.tokenReserves.reserve1,
+        reserve2: stateEvent.tokenReserves.reserve2,
+        reserve3: stateEvent.tokenReserves.reserve3,
+        reserve4: stateEvent.tokenReserves.reserve4,
       } : {
-        reserve1: wmonAmountWei,
-        reserve2: tokenAmountWei,
-        reserve3: BigInt(432) * 10n ** 18n,
-        reserve4: 1_000_000_000n * 10n ** 18n,
+        // No fake reserves - leave as zero until we get real state events
+        reserve1: BigInt(0),
+        reserve2: BigInt(0), 
+        reserve3: BigInt(0),
+        reserve4: BigInt(0),
       },
       blockNumber: tradeEvent.blockNumber.toString(),
-      blockId: 'unknown', // Will be set by the adapter
+      blockId: 'unknown',
       commitState: tradeEvent.phase,
       timestamp: tradeEvent.timestamp,
       transactionHash: tradeEvent.id.transactionHash,
-      logIndex: tradeEvent.id.logIndex
+      logIndex: tradeEvent.id.logIndex,
+      eventSignature: this.getEventSignature(tradeEvent)
     };
+
+    // Validate reserves before creating trade
+    const reserveIssues = validateReserves(tradeData.reserves);
+    if (reserveIssues.length > 0) {
+      console.warn('⚠️  Reserve validation issues:', reserveIssues);
+    }
 
     const trade = new MonadTrade(tradeData);
 
@@ -199,12 +244,36 @@ export class MonadTokenProcessorService {
   }
 
   /**
-   * Determine if trade is buy or sell based on amounts
+   * Determine if trade is buy or sell from event signature
    */
   private determineTradDirection(tradeEvent: CurveTradeEvent): boolean {
-    // This logic depends on the specific bonding curve implementation
-    // For now, assume amount1 > 0 means buying tokens with WMON
-    return tradeEvent.tradeAmounts.amount1 > 0n;
+    // Primary method: Use event signature to determine direction
+    const eventType = tradeEvent.eventType;
+    
+    if (eventType === 'BUY') {
+      return true;
+    } else if (eventType === 'SELL') {
+      return false;
+    }
+    
+    // Fallback: Check if directional amounts are available
+    if (tradeEvent.tradeAmounts.isBuy !== undefined) {
+      return tradeEvent.tradeAmounts.isBuy;
+    }
+    
+    // Last resort: Log warning and default to BUY
+    console.warn(`⚠️  Could not determine trade direction for event type: ${eventType}`);
+    return true;
+  }
+
+  private getEventSignature(tradeEvent: CurveTradeEvent): string | undefined {
+    const eventType = tradeEvent.eventType;
+    if (eventType === 'BUY') {
+      return '0x00a7ba871905cb955432583640b5c9fc6bdd27d36884ab2b5420839224638862';
+    } else if (eventType === 'SELL') {
+      return '0x0eb25df0e2137de8ce042eeaf39080d25f0c8d451372c99db69a4c0a298d0fa1';
+    }
+    return undefined;
   }
 
   // calculatePricePerToken method removed - now calculated inline with corrected field mapping

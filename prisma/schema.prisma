@@ -148,24 +148,40 @@ model MonadTokenTrade {
   trader               String
   isBuy                Boolean            @map("is_buy")
   
-  // Monad uses WMON (wrapped MON) instead of SOL - store human 18-decimal values
-  wmonAmount           Decimal            @map("wmon_amount") @db.Decimal(38, 18)     // WMON (human, 18)
-  tokenAmount          Decimal            @map("token_amount") @db.Decimal(38, 18)    // TOK (human, 18)
-  pricePerToken        Decimal            @map("price_per_token") @db.Decimal(38, 18) // MON per TOK (human)
-  usdAmount            Decimal            @map("usd_amount") @db.Decimal(30, 2)       // USD amounts
+  // Trade amounts (human readable, 18 decimals)
+  wmonAmount           Decimal            @map("wmon_amount") @db.Decimal(38, 18)     // WMON amount in trade
+  tokenAmount          Decimal            @map("token_amount") @db.Decimal(38, 18)    // Token amount in trade
+  pricePerToken        Decimal            @map("price_per_token") @db.Decimal(38, 18) // WMON per token
+  usdAmount            Decimal            @map("usd_amount") @db.Decimal(30, 2)       // USD value of trade
   
+  // Side-agnostic amounts for clarity
+  amountIn             Decimal?           @map("amount_in") @db.Decimal(38, 18)       // Input amount
+  amountOut            Decimal?           @map("amount_out") @db.Decimal(38, 18)      // Output amount  
+  inAsset              String?            @map("in_asset")                            // "WMON" or "TOKEN"
+  
+  // Event metadata for auditability
+  eventSignature       String?            @map("event_signature")                     // Event topic0
+  
+  // Trading context
+  source               String?            @default("curve") @map("source")           // "curve" or "dex"
+  poolAddress          String?            @map("pool_address")                       // DEX pool address (nullable for curve)
   isCreatorTrade       Boolean            @default(false) @map("is_creator_trade")
   timestamp            DateTime
+  
+  // Market data
   curveProgress        Float?             @map("curve_progress")
   marketCap            Decimal?           @map("market_cap") @db.Decimal(30, 2)       // Market cap in USD
   liquidityUsd         Decimal?           @map("liquidity_usd") @db.Decimal(30, 2)   // Liquidity in USD
   
-  // Nad.fun curve reserves (human, 18). **Order matters**:
-  // reserve1=realMon, reserve2=realToken, reserve3=virtualMon, reserve4=virtualToken
-  reserve1             Decimal?           @db.Decimal(38, 18) // Real MON reserve
-  reserve2             Decimal?           @db.Decimal(38, 18) // Real token reserve  
-  reserve3             Decimal?           @db.Decimal(38, 18) // Virtual MON reserve
-  reserve4             Decimal?           @db.Decimal(38, 18) // Virtual token reserve
+  // Raw trade amounts (for debugging/verification)
+  amountWmonRaw        Decimal?           @map("amount_wmon_raw") @db.Decimal(38, 18) // Raw WMON amount from event
+  amountTokenRaw       Decimal?           @map("amount_token_raw") @db.Decimal(38, 18) // Raw token amount from event
+  
+
+  
+  // Virtual reserves (constants for bonding curve)
+  virtualWmonReserve   Decimal?           @map("virtual_wmon_reserve") @db.Decimal(38, 18) // Virtual WMON reserve
+  virtualTokenReserve  Decimal?           @map("virtual_token_reserve") @db.Decimal(38, 18) // Virtual token reserve
   
   usdSpotPrice         Decimal?           @map("usd_spot_price") @db.Decimal(38, 18)  // USD per token
   createdAt            DateTime           @default(now()) @map("created_at")
@@ -184,6 +200,7 @@ model MonadTokenTrade {
   @@index([tokenAddress, timestamp])
   @@index([trader, timestamp])
   @@index([tokenAddress, commitState]) // For filtering by finalized trades
+
   @@map("monad_token_trades")
 }
 

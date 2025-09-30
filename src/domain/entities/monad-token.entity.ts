@@ -37,6 +37,10 @@ export interface MonadTradeData {
   readonly timestamp: Date;
   readonly transactionHash: string;
   readonly logIndex?: number;
+  readonly eventSignature?: string;
+  // Raw amounts for verification and debugging
+  readonly amountWmonRaw?: bigint;
+  readonly amountTokenRaw?: bigint;
 }
 
 export class MonadToken {
@@ -169,6 +173,10 @@ export class MonadTrade {
 
   get bondingCurve(): string | undefined {
     return undefined; // Not available in trade data
+  }
+
+  get eventSignature(): string | undefined {
+    return this.data.eventSignature;
   }
 
   get isFinalized(): boolean {
