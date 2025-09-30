@@ -15,6 +15,7 @@ enum CommitState {
     proposed
     finalized
     verified
+    orphaned
 }
 
 // User model for authentication and user management
@@ -144,7 +145,7 @@ model MonadTokenTrade {
   uniqueTradeId        String?            @unique @map("unique_trade_id") // ${signature}:${logIndex} for idempotency
   blockNumber          String             @map("block_number")
   blockId              String             @map("block_id")
-  commitState          CommitState        @map("commit_state") // Track which phase this trade was recorded in
+  commitState          CommitState        @map("commit_state")         // proposed/finalized/verified/orphaned
   trader               String
   isBuy                Boolean            @map("is_buy")
   
@@ -164,7 +165,6 @@ model MonadTokenTrade {
   
   // Trading context
   source               String?            @default("curve") @map("source")           // "curve" or "dex"
-  poolAddress          String?            @map("pool_address")                       // DEX pool address (nullable for curve)
   isCreatorTrade       Boolean            @default(false) @map("is_creator_trade")
   timestamp            DateTime
   

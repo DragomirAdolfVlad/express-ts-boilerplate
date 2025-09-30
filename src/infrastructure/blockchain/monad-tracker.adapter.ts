@@ -13,6 +13,7 @@ import { MonadTokenProcessorService } from '../../application/services/monad-tok
 import { WmonPriceProviderAdapter } from '../pricing/wmon-price-provider.adapter';
 import { MonadTokenRepository } from '../database/monad-token.repository';
 import { TokenMetadataService } from '../metadata/token-metadata.service';
+import { httpProvider } from './providers';
 import {
   CurveTradeEvent,
   CurveTokenEvent,
@@ -49,7 +50,7 @@ export class MonadTrackerAdapter implements IBlockchainTracker {
   ) {
     // Initialize token processing services
     this.wmonPriceProvider = priceProvider || new WmonPriceProviderAdapter();
-    this.tokenProcessor = new MonadTokenProcessorService(this.wmonPriceProvider);
+    this.tokenProcessor = new MonadTokenProcessorService(this.wmonPriceProvider, httpProvider);
     this.metadataService = new TokenMetadataService(process.env['MONAD_HTTP_URL'] || process.env['MONAD_RPC'] || 'https://rpc.monad.xyz');
   }
 

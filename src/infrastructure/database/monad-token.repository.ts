@@ -313,7 +313,6 @@ export class MonadTokenRepositoryImpl implements MonadTokenRepository {
                         
                         // Trading context
                         source: 'curve',
-                        poolAddress: null, // Curve trades don't have pools
                         isCreatorTrade: false, // TODO: Determine from creator data
                         timestamp: trade.timestamp,
                         
