@@ -18,7 +18,7 @@ interface ProposedTrade {
 
 export class ProposedBlockTracker {
   private optimisticTrades = new Map<string, ProposedTrade>();
-  private rollbackQueue = new Set<string>();
+  // Removed unused rollbackQueue - rollbacks are handled immediately
   private rejectionRate = 0;
   private totalProcessed = 0;
   private totalRollbacks = 0;

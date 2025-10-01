@@ -27,11 +27,11 @@ export class DualBlockListener {
    */
   async start(): Promise<void> {
     if (this.isRunning) return;
-    
+
     console.log('🚀 Starting DUAL block listener...');
     console.log('   ⚡ FAST: Proposed blocks (400ms) → UI updates');
     console.log('   🛡️  SAFE: Finalized blocks (800ms) → Data persistence');
-    
+
     this.isRunning = true;
 
     // LISTENER 1: PROPOSED BLOCKS (FAST PATH)
@@ -61,7 +61,7 @@ export class DualBlockListener {
    */
   private async handleProposedBlock(blockNumber: number): Promise<void> {
     console.log(`⚡ PROPOSED: Processing block ${blockNumber}`);
-    
+
     try {
       // Get the proposed block
       const block = await this.proposedListener.getBlock(blockNumber);
@@ -89,7 +89,7 @@ export class DualBlockListener {
    */
   private async handleFinalizedBlock(blockNumber: number): Promise<void> {
     console.log(`🛡️  FINALIZED: Processing block ${blockNumber}`);
-    
+
     try {
       // Get the finalized block
       const block = await this.finalizedListener.getBlock(blockNumber);
@@ -117,11 +117,11 @@ export class DualBlockListener {
    */
   private async processOptimisticTrade(log: any, block: any): Promise<void> {
     const tradeId = `${log.transactionHash}:${log.logIndex}`;
-    
+
     try {
       // Parse trade data from log
       const tradeData = await this.parseTradeFromLog(log);
-      
+
       // Insert as PROPOSED (optimistic)
       await this.prisma.monadTokenTrade.upsert({
         where: { uniqueTradeId: tradeId },
@@ -129,12 +129,8 @@ export class DualBlockListener {
           ...tradeData,
           uniqueTradeId: tradeId,
           commitState: 'proposed', // 🚨 OPTIMISTIC
-          blockHash: block.hash,
           blockNumber: block.number.toString(),
-          timestamp: new Date(block.timestamp * 1000),
-          observedAt: new Date(), // When we first saw it
-          promotedAt: null,
-          orphanedAt: null
+          timestamp: new Date(block.timestamp * 1000)
         },
         update: {
           // Don't overwrite if already finalized
@@ -162,32 +158,23 @@ export class DualBlockListener {
    */
   private async promoteTrade(log: any, block: any): Promise<void> {
     const tradeId = `${log.transactionHash}:${log.logIndex}`;
-    
+
     try {
       // Check if we have this trade as proposed
       const existingTrade = await this.prisma.monadTokenTrade.findUnique({
         where: { uniqueTradeId: tradeId },
-        select: { commitState: true, blockHash: true }
+        select: { commitState: true }
       });
 
       if (existingTrade) {
         // PROMOTE: proposed → finalized
         if (existingTrade.commitState === 'proposed') {
-          
-          // Check for reorg (different block hash)
-          if (existingTrade.blockHash && existingTrade.blockHash !== block.hash) {
-            console.warn(`🔄 REORG: Trade ${tradeId} block hash changed`);
-            await this.handleReorg(tradeId, log, block);
-            return;
-          }
 
-          // PROMOTE to finalized
+          // PROMOTE to finalized (removed reorg detection since we removed blockHash field)
           await this.prisma.monadTokenTrade.update({
             where: { uniqueTradeId: tradeId },
             data: {
-              commitState: 'finalized', // 🛡️ SAFE
-              promotedAt: new Date(),
-              blockHash: block.hash // Confirm block hash
+              commitState: 'finalized' // 🛡️ SAFE
             }
           });
 
@@ -203,18 +190,14 @@ export class DualBlockListener {
       } else {
         // NEW TRADE: Insert directly as finalized (missed proposed)
         const tradeData = await this.parseTradeFromLog(log);
-        
+
         await this.prisma.monadTokenTrade.create({
           ...tradeData,
           uniqueTradeId: tradeId,
           commitState: 'finalized',
-          blockHash: block.hash,
           blockNumber: block.number.toString(),
           blockId: block.hash,
-          timestamp: new Date(block.timestamp * 1000),
-          observedAt: new Date(),
-          promotedAt: new Date(),
-          orphanedAt: null
+          timestamp: new Date(block.timestamp * 1000)
         });
 
         // 🛡️ EMIT NEW FINALIZED TRADE
@@ -233,52 +216,7 @@ export class DualBlockListener {
     }
   }
 
-  /**
-   * Handle blockchain reorg
-   */
-  private async handleReorg(tradeId: string, log: any, newBlock: any): Promise<void> {
-    console.warn(`🔄 REORG: Handling reorg for trade ${tradeId}`);
-    
-    try {
-      // Mark old trade as orphaned
-      await this.prisma.monadTokenTrade.update({
-        where: { uniqueTradeId: tradeId },
-        data: {
-          commitState: 'orphaned' as any,
-          orphanedAt: new Date()
-        }
-      });
-
-      // Create new trade with new block data
-      const tradeData = await this.parseTradeFromLog(log);
-      const newTradeId = `${log.transactionHash}:${log.logIndex}_reorg_${Date.now()}`;
-      
-      await this.prisma.monadTokenTrade.create({
-        ...tradeData,
-        uniqueTradeId: newTradeId,
-        commitState: 'finalized',
-        blockHash: newBlock.hash,
-        blockNumber: newBlock.number.toString(),
-        blockId: newBlock.hash,
-        timestamp: new Date(newBlock.timestamp * 1000),
-        observedAt: new Date(),
-        promotedAt: new Date(),
-        orphanedAt: null
-      });
-
-      // 🔄 EMIT REORG TO UI
-      this.emitToUI('trade_reorged', {
-        oldTradeId: tradeId,
-        newTradeId,
-        blockNumber: newBlock.number
-      });
-
-      console.log(`🔄 REORG: Trade ${tradeId} → ${newTradeId}`);
-
-    } catch (error) {
-      console.error(`❌ REORG: Failed to handle reorg for ${tradeId}:`, error);
-    }
-  }
+  // Removed handleReorg function since we removed blockHash field for schema cleanup
 
   /**
    * Parse trade data from log (your existing logic)
@@ -287,7 +225,7 @@ export class DualBlockListener {
     // Your existing trade parsing logic here
     // This is where you decode the swap event and extract:
     // - tokenAddress, trader, isBuy, wmonAmount, tokenAmount, etc.
-    
+
     return {
       tokenAddress: '0x1234567890123456789012345678901234567890',
       signature: _log.transactionHash,

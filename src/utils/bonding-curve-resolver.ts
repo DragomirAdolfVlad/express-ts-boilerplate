@@ -14,11 +14,12 @@ export class BondingCurveResolver {
 
   /**
    * Set bonding curve from trade receipt if not already set
+   * DEPRECATED - Only used for existing tokens, new tokens come from CurveCreate events
    */
   async ensureBondingCurveFromTrade(
     tokenAddress: string,
-    signature: string,
-    logIndex: number
+    _signature: string,
+    _logIndex: number
   ): Promise<string | null> {
     try {
       // Check if token already has bonding curve
@@ -37,45 +38,114 @@ export class BondingCurveResolver {
         return token.bondingCurve;
       }
 
-      // Get bonding curve from transaction receipt
-      const receipt = await this.provider.getTransactionReceipt(signature);
+      // DEPRECATED: Don't create new tokens from trades anymore
+      console.log(`⚠️  DEPRECATED: ensureBondingCurveFromTrade called for ${tokenAddress}`);
+      console.log(`   This method is deprecated - tokens should only be created from CurveCreate events`);
       
-      if (!receipt || !receipt.logs || receipt.logs.length <= logIndex) {
-        console.warn(`Invalid receipt or log index for token ${tokenAddress}`);
-        return null;
-      }
-
-      const bondingCurve = receipt.logs[logIndex]?.address;
-
-      if (!bondingCurve || bondingCurve === '0x0000000000000000000000000000000000000000') {
-        console.warn(`Invalid bonding curve address for token ${tokenAddress}`);
-        return null;
-      }
-
-      // Update token with bonding curve
-      await this.prisma.monadLaunchedToken.upsert({
-        where: { token: tokenAddress },
-        create: {
-          token: tokenAddress,
-          bondingCurve,
-          platform: 'monad',
-          signature: 'unknown', // Will be updated when launch data is available
-          creator: 'unknown',
-          blockNumber: 'unknown',
-          blockId: 'unknown',
-          timestamp: new Date(),
-          commitState: 'verified'
-        },
-        update: {
-          bondingCurve
-        }
-      });
-
-      console.log(`✅ Set bonding curve for ${tokenAddress}: ${bondingCurve}`);
-      return bondingCurve;
+      return null;
 
     } catch (error) {
-      console.error(`Error resolving bonding curve for ${tokenAddress}:`, error);
+      console.error(`Error in deprecated bonding curve resolver for ${tokenAddress}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Extract bonding curve address from transaction receipt by analyzing CurveCreate events
+   */
+  private async extractBondingCurveFromReceipt(txHash: string, tokenAddress: string): Promise<string | null> {
+    try {
+      // Get transaction receipt
+      const receipt = await this.provider.getTransactionReceipt(txHash);
+      
+      if (!receipt || !receipt.logs) {
+        console.warn(`No receipt or logs found for transaction ${txHash}`);
+        return null;
+      }
+
+      // Import ethers and ABI for event decoding
+      const { ethers } = await import('ethers');
+      const { BONDING_CURVE_ABI, getEventTopicHash, BONDING_CURVE_EVENTS } = await import('../infrastructure/blockchain/abis/official-nad-fun.abi');
+      
+      // Get CurveCreate event topic hash
+      const curveCreateTopic = await getEventTopicHash(BONDING_CURVE_EVENTS.CurveCreate);
+      
+      // Create interface for decoding
+      const iface = new ethers.Interface(BONDING_CURVE_ABI);
+
+      // Look for CurveCreate events in the transaction logs
+      for (const log of receipt.logs) {
+        if (log.topics[0] === curveCreateTopic) {
+          try {
+            // Decode the CurveCreate event
+            const decoded = iface.parseLog({
+              topics: log.topics,
+              data: log.data
+            });
+
+            if (decoded && decoded.name === 'CurveCreate') {
+              // Extract token and pool addresses from the event
+              const { token: eventTokenAddress, pool: bondingCurveAddress } = decoded.args;
+              
+              // Verify this is the correct token
+              if (eventTokenAddress.toLowerCase() === tokenAddress.toLowerCase()) {
+                console.log(`🔍 Found CurveCreate event: Token ${tokenAddress} -> Pool ${bondingCurveAddress}`);
+                return bondingCurveAddress;
+              }
+            }
+          } catch (decodeError) {
+            // Skip logs that can't be decoded as CurveCreate events
+            continue;
+          }
+        }
+      }
+
+      // Fallback: Look for the most active contract in the transaction (likely the bonding curve)
+      console.log(`🔍 CurveCreate event not found, using fallback method for ${tokenAddress}`);
+      return this.extractBondingCurveFallback(receipt.logs, tokenAddress);
+
+    } catch (error) {
+      console.error(`Error extracting bonding curve from receipt ${txHash}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Fallback method: Find the most active contract in the transaction logs
+   */
+  private extractBondingCurveFallback(logs: readonly any[], tokenAddress: string): string | null {
+    try {
+      // Count log occurrences by contract address
+      const contractCounts = new Map<string, number>();
+      
+      for (const log of logs) {
+        if (log.address && log.address.toLowerCase() !== tokenAddress.toLowerCase()) {
+          const address = log.address.toLowerCase();
+          contractCounts.set(address, (contractCounts.get(address) || 0) + 1);
+        }
+      }
+      
+      // Find the contract with the most logs (likely the bonding curve)
+      let mostActiveContract: string | null = null;
+      let maxCount = 0;
+      
+      for (const [address, count] of contractCounts.entries()) {
+        if (count > maxCount) {
+          maxCount = count;
+          mostActiveContract = address;
+        }
+      }
+      
+      if (mostActiveContract && maxCount > 1) {
+        console.log(`🔍 Fallback bonding curve candidate: ${mostActiveContract} (${maxCount} logs)`);
+        return mostActiveContract;
+      }
+      
+      console.log(`❌ No suitable bonding curve candidate found`);
+      return null;
+      
+    } catch (error) {
+      console.error(`Error in bonding curve fallback extraction:`, error);
       return null;
     }
   }

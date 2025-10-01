@@ -1,0 +1,3 @@
+[submodule "abis/nad-fun"]
+	path = abis/nad-fun
+	url = https://github.com/Naddotfun/contract-v3-abi.git

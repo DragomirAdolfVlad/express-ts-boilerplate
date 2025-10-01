@@ -98,3 +98,14 @@ prisma/dev.db-journal
 
 # Docker
 .dockerignore
+
+# Runtime metrics and temporary files
+temp-metrics.json
+token-metadata-results.json
+*.temp.json
+
+# Temporary directories and compiled files
+temp/
+*.js.map
+scripts/*.js
+src/**/*.js

@@ -10,7 +10,7 @@ import { errorHandler } from './middleware/error-handler';
 import { correlationIdMiddleware, requestLoggingMiddleware } from './middleware/request-logger';
 import { config } from './config/loader';
 import { log } from './utils/logger';
-import { BlockchainTrackingService } from './application/services/blockchain-tracking.service';
+// Removed old BlockchainTrackingService - now using MonadTrackerMain
 
 /**
  * Create Express application
@@ -103,33 +103,23 @@ export async function startServer(): Promise<void> {
         });
     }
 
-    // Initialize the blockchain tracking service
-    const trackingService = new BlockchainTrackingService({
-        monad: {
-            wsUrl: process.env['MONAD_WS_URL']!,
-            httpUrl: process.env['MONAD_HTTP_URL']!,
-            contractAddress: process.env['CONTRACT_ADDRESS']!,
-            reconnection: {
-                maxAttempts: Number(process.env['MAX_RECONNECT_ATTEMPTS']) || 10,
-                baseDelay: Number(process.env['RECONNECT_BASE_DELAY']) || 1000,
-                backoffFactor: Number(process.env['RECONNECT_BACKOFF_FACTOR']) || 2
-            }
-        },
-        redis: {
-            url: process.env['REDIS_URL']!,
-            channel: process.env['REDIS_CHANNEL'] || 'nadfun:live'
-        },
-        features: {
-            enablePersistence: true, // ENABLED - PostgreSQL repository is working
-            enablePublishing: true
-        }
-    });
+    // Initialize the new Monad tracker with token creation detection
+    const { MonadTrackerMain } = await import('./infrastructure/blockchain/monad-tracker-main');
+    const { JsonRpcProvider, WebSocketProvider } = await import('ethers');
+    const { PrismaClient } = await import('@prisma/client');
+
+    const httpProvider = new JsonRpcProvider(process.env['MONAD_RPC_URL'] || process.env['MONAD_HTTP_URL']);
+    const wsProvider = new WebSocketProvider(process.env['MONAD_WS_URL']!);
+    const prisma = new PrismaClient();
+
+    let monadTracker: any = null;
 
     try {
-        await trackingService.initialize();
-        log.info('Blockchain tracking service initialized successfully');
+        monadTracker = new MonadTrackerMain(httpProvider, wsProvider, prisma);
+        await monadTracker.start();
+        log.info('Monad tracker with token creation detection started successfully');
     } catch (error) {
-        log.error('Failed to initialize blockchain tracking service', {
+        log.error('Failed to start Monad tracker', {
             error: error instanceof Error ? error.message : String(error)
         });
         // Don't exit - the API should still work even if tracker fails
@@ -154,12 +144,14 @@ export async function startServer(): Promise<void> {
             });
         }
 
-        // Shutdown blockchain tracking service
+        // Shutdown Monad tracker
         try {
-            await trackingService.shutdown();
-            log.info('Blockchain tracking service shutdown complete');
+            if (monadTracker) {
+                await monadTracker.stop();
+                log.info('Monad tracker shutdown complete');
+            }
         } catch (error) {
-            log.error('Error during tracking service shutdown:', {
+            log.error('Error during Monad tracker shutdown:', {
                 error: error instanceof Error ? error.message : String(error)
             });
         }

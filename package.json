@@ -22,7 +22,15 @@
         "db:studio": "prisma studio",
         "populate-metadata": "ts-node -r tsconfig-paths/register scripts/populate-metadata-simple.ts",
         "test-metadata": "ts-node -r tsconfig-paths/register scripts/test-metadata.ts",
-        "research-nad-images": "ts-node -r tsconfig-paths/register scripts/research-nad-images.ts"
+        "research-nad-images": "ts-node -r tsconfig-paths/register scripts/research-nad-images.ts",
+        "backfill-metadata": "ts-node -r tsconfig-paths/register scripts/backfill-token-metadata.ts",
+        "backfill-metadata:dry-run": "ts-node -r tsconfig-paths/register scripts/backfill-token-metadata.ts --dry-run",
+        "debug-tx": "ts-node -r tsconfig-paths/register scripts/debug-specific-transaction.ts",
+        "metrics": "ts-node -r tsconfig-paths/register scripts/advanced-metrics.ts",
+        "metrics-monitor": "ts-node -r tsconfig-paths/register scripts/advanced-metrics.ts",
+        "metrics-simple": "ts-node -r tsconfig-paths/register scripts/simple-metrics.ts",
+        "verify-production": "ts-node -r tsconfig-paths/register scripts/verify-production-ready.ts",
+        "switch-optimized": "ts-node -r tsconfig-paths/register scripts/switch-to-optimized.ts"
     },
     "keywords": [
         "express",

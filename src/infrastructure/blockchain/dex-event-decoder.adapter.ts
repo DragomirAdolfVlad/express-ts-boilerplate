@@ -9,7 +9,7 @@ import { decodeEventLog } from 'viem';
 import { IEventDecoderService, RawBlockchainLog, DecodingResult } from '../../domain/services/event-decoder.service';
 import { BlockchainEventData, EventPhase } from '../../domain/entities/blockchain-event.entity';
 import { DexSwapEvent } from '../../domain/entities/dex-events.entity';
-import { UNISWAP_V3_POOL_ABI } from './abis/uniswap-v3-pool.abi';
+import { UNISWAP_V3_POOL_ABI } from './abis/official-nad-fun.abi';
 
 export class DexEventDecoderAdapter implements IEventDecoderService {
   async decode(log: RawBlockchainLog, phase: string): Promise<DecodingResult> {

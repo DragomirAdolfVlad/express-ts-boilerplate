@@ -1,11 +1,14 @@
 /**
  * Enhanced Trade Processor
  * 
- * High-performance trade processing with proper block data extraction
- * and virtual reserve calculation for near 0ms latency
+ * Processes trades with enhanced data including reserves, pricing, and market metrics
+ * Optimized for high performance with caching and batch operations
  */
+
 import { JsonRpcProvider } from 'ethers';
 import { PrismaClient } from '@prisma/client';
+import { OptimizedTokenCreationTracker } from './optimized-tracker';
+import { sharedMetrics } from '../../utils/shared-metrics';
 
 interface EnhancedTradeData {
     tokenAddress: string;
@@ -14,32 +17,29 @@ interface EnhancedTradeData {
     wmonAmount: bigint;
     tokenAmount: bigint;
     pricePerToken: bigint;
-    reserves: {
-        reserve1: bigint; // Real WMON reserve
-        reserve2: bigint; // Real token reserve  
-        reserve3: bigint; // Virtual WMON reserve
-        reserve4: bigint; // Virtual token reserve
-    };
+    reserves: { reserve1: bigint; reserve2: bigint; reserve3: bigint; reserve4: bigint };
     blockNumber: string;
-    blockHash: string; // Proper block identification
-    blockTimestamp: Date; // Accurate block timestamp
+    blockHash: string;
+    blockTimestamp: Date;
     transactionHash: string;
     logIndex: number;
-    eventSignature: string;
     commitState: string;
 }
 
 export class EnhancedTradeProcessor {
     private blockCache = new Map<string, { hash: string; timestamp: Date }>();
     private reserveCache = new Map<string, { reserve1: bigint; reserve2: bigint; reserve3: bigint; reserve4: bigint }>();
+    private tokenCreationTracker: OptimizedTokenCreationTracker;
 
     constructor(
-        private provider: JsonRpcProvider,
+        provider: JsonRpcProvider,
         private prisma: PrismaClient
-    ) { }
+    ) {
+        this.tokenCreationTracker = new OptimizedTokenCreationTracker(provider, prisma);
+    }
 
     /**
-     * Process trade with enhanced data extraction for maximum performance
+     * Process trade with enhanced data including reserves and market metrics
      */
     async processTradeWithEnhancedData(
         signature: string,
@@ -51,14 +51,36 @@ export class EnhancedTradeProcessor {
         tokenAmount: bigint,
         pricePerToken: bigint,
         reserves: { reserve1: bigint; reserve2: bigint; reserve3: bigint; reserve4: bigint },
-        commitState: string
+        commitState: string,
+        realBlockNumber?: string,
+        realBlockHash?: string,
+        realTimestamp?: Date
     ): Promise<void> {
         try {
-            // 1. Get enhanced block data (with caching)
-            const blockData = await this.getEnhancedBlockData(signature);
+            // 1. Use real block data when available, fallback to approximate
+            let blockData;
+            if (realBlockNumber && realBlockHash) {
+                // Use real blockchain data
+                const blockNum = parseInt(realBlockNumber, 16);
+                const blockTimestamp = realTimestamp || new Date(); // Use provided timestamp or current time
+                
+                blockData = {
+                    blockNumber: blockNum.toString(),
+                    blockHash: realBlockHash,
+                    timestamp: blockTimestamp
+                };
+            } else {
+                // Fallback to approximate data (avoid RPC calls)
+                const currentBlock = Math.floor(Date.now() / 1000 / 12);
+                blockData = {
+                    blockNumber: currentBlock.toString(),
+                    blockHash: 'optimized',
+                    timestamp: new Date()
+                };
+            }
 
-            // 2. Extract proper reserves from event data
-            const enhancedReserves = await this.extractReservesFromEvent(signature, logIndex);
+            // 2. Skip reserve extraction to avoid RPC spam
+            const enhancedReserves = reserves; // Use provided reserves
 
             // 3. Create enhanced trade data
             const enhancedTrade: EnhancedTradeData = {
@@ -68,18 +90,30 @@ export class EnhancedTradeProcessor {
                 wmonAmount,
                 tokenAmount,
                 pricePerToken,
-                reserves: enhancedReserves || reserves, // Use extracted or fallback
+                reserves: enhancedReserves,
                 blockNumber: blockData.blockNumber,
                 blockHash: blockData.blockHash,
                 blockTimestamp: blockData.timestamp,
                 transactionHash: signature,
                 logIndex,
-                eventSignature: await this.getEventSignature(signature, logIndex),
                 commitState
             };
 
-            // 4. High-performance database write
+            // 4. Check for new token creation (first trade detection)
+            await this.tokenCreationTracker.detectTokenFromFirstTrade(
+                tokenAddress,
+                signature,
+                logIndex,
+                trader,
+                blockData.blockNumber,
+                blockData.blockHash,
+                blockData.timestamp
+            );
+
+            // 5. Write enhanced trade data
             await this.writeEnhancedTrade(enhancedTrade);
+
+            console.log(`[⚡ ENHANCED] Trade processed: ${tokenAddress} ${isBuy ? 'BUY' : 'SELL'} - Block: ${blockData.blockHash.slice(0, 10)}...`);
 
         } catch (error) {
             console.error(`[❌ ENHANCED] Failed to process trade ${signature}:${logIndex}:`, error);
@@ -88,144 +122,35 @@ export class EnhancedTradeProcessor {
     }
 
     /**
-     * Get enhanced block data with caching for performance
+     * Get enhanced block data - simplified to avoid RPC spam
      */
-    private async getEnhancedBlockData(txHash: string): Promise<{
-        blockNumber: string;
-        blockHash: string;
-        timestamp: Date;
-    }> {
-        try {
-            // Check cache first
-            if (this.blockCache.has(txHash)) {
-                const cached = this.blockCache.get(txHash)!;
-                return {
-                    blockNumber: 'cached',
-                    blockHash: cached.hash,
-                    timestamp: cached.timestamp
-                };
-            }
-
-            // Get transaction receipt
-            const receipt = await this.provider.getTransactionReceipt(txHash);
-            if (!receipt) {
-                throw new Error(`No receipt found for ${txHash}`);
-            }
-
-            // Get block data
-            const block = await this.provider.getBlock(receipt.blockNumber);
-            if (!block) {
-                throw new Error(`No block found for ${receipt.blockNumber}`);
-            }
-
-            const blockData = {
-                blockNumber: receipt.blockNumber.toString(),
-                blockHash: block.hash || 'unknown',
-                timestamp: new Date(block.timestamp * 1000) // Convert to milliseconds
-            };
-
-            // Only cache if we have a valid block hash
-            if (blockData.blockHash !== 'unknown') {
-                this.blockCache.set(txHash, {
-                    hash: blockData.blockHash,
-                    timestamp: blockData.timestamp
-                });
-            }
-
-            return blockData;
-
-        } catch (error) {
-            console.warn(`[⚠️ ENHANCED] Failed to get block data for ${txHash}, using fallback`);
-            return {
-                blockNumber: 'unknown',
-                blockHash: 'unknown',
-                timestamp: new Date()
-            };
-        }
-    }
+    // Method removed - using inline block data to avoid RPC spam
 
     /**
-     * Extract virtual reserves from event data
-     */
-    private async extractReservesFromEvent(
-        txHash: string,
-        logIndex: number
-    ): Promise<{ reserve1: bigint; reserve2: bigint; reserve3: bigint; reserve4: bigint } | null> {
-        try {
-            const receipt = await this.provider.getTransactionReceipt(txHash);
-            if (!receipt || !receipt.logs || receipt.logs.length <= logIndex) {
-                return null;
-            }
-
-            const log = receipt.logs[logIndex];
-
-            if (!log) {
-                return null;
-            }
-
-            // NAD.FUN swap event has reserves in the data
-            // Event signature: Swap(address,bool,uint256,uint256,uint256,uint256,uint256,uint256)
-            if (log.data && log.data.length >= 258) { // 32 bytes * 8 fields + 2 for 0x
-                try {
-                    // Parse the event data (simplified - would need proper ABI decoding in production)
-                    const data = log.data.slice(2); // Remove 0x
-
-                    // Extract reserves (this is a simplified version - proper ABI decoding needed)
-                    const reserve1 = BigInt('0x' + data.slice(128, 192)); // Real WMON
-                    const reserve2 = BigInt('0x' + data.slice(192, 256)); // Real token
-                    const reserve3 = BigInt('0x' + data.slice(256, 320)); // Virtual WMON
-                    const reserve4 = BigInt('0x' + data.slice(320, 384)); // Virtual token
-
-                    return { reserve1, reserve2, reserve3, reserve4 };
-                } catch (parseError) {
-                    console.warn(`[⚠️ ENHANCED] Failed to parse reserves from ${txHash}:${logIndex}`);
-                    return null;
-                }
-            }
-
-            return null;
-        } catch (error) {
-            console.warn(`[⚠️ ENHANCED] Failed to extract reserves from ${txHash}:${logIndex}`);
-            return null;
-        }
-    }
-
-    /**
-     * Get event signature for proper event identification
-     */
-    private async getEventSignature(txHash: string, logIndex: number): Promise<string> {
-        try {
-            const receipt = await this.provider.getTransactionReceipt(txHash);
-            if (!receipt || !receipt.logs || receipt.logs.length <= logIndex) {
-                return 'unknown';
-            }
-
-            const log = receipt.logs[logIndex];
-            return log?.topics[0] || 'unknown';
-        } catch (error) {
-            return 'unknown';
-        }
-    }
-
-    /**
-     * High-performance database write with proper indexing
+     * Write enhanced trade data to database
      */
     private async writeEnhancedTrade(trade: EnhancedTradeData): Promise<void> {
+        const startTime = Date.now();
         const uniqueTradeId = `${trade.transactionHash}:${trade.logIndex}`;
 
-        // Convert BigInt to numbers for database storage
+        // Calculate USD amounts and market metrics
         const wmonAmount = this.bigIntToNumber(trade.wmonAmount, 18);
         const tokenAmount = this.bigIntToNumber(trade.tokenAmount, 18);
         const pricePerToken = this.bigIntToNumber(trade.pricePerToken, 18);
-
-        // Calculate USD amounts and market data
-        const usdAmount = wmonAmount * 3.25; // WMON price (should be from price feed)
-        const usdSpotPrice = tokenAmount > 0 ? (usdAmount / tokenAmount) : 0;
-        const marketCap = usdAmount * 1000;
+        
+        // Mock WMON price (would get from price service in production)
+        const wmonPriceUsd = 3.25;
+        const usdAmount = wmonAmount * wmonPriceUsd;
+        const usdSpotPrice = tokenAmount > 0 ? usdAmount / tokenAmount : 0;
+        const marketCap = usdAmount * 1000; // Simplified calculation
         const liquidityUsd = marketCap * 0.1;
         const curveProgress = this.calculateCurveProgress(trade.reserves);
 
         try {
+            if (!trade.isBuy) {
+                console.log(`[💾 DB] SAVING SELL TRADE: ${uniqueTradeId}`);
+            }
+            
             // Single optimized upsert operation
             await this.prisma.monadTokenTrade.upsert({
                 where: { uniqueTradeId },
@@ -235,47 +160,31 @@ export class EnhancedTradeProcessor {
                     logIndex: trade.logIndex,
                     uniqueTradeId,
                     blockNumber: trade.blockNumber,
-                    blockId: trade.blockHash, // Proper block identification
+                    blockId: trade.blockHash,
                     commitState: trade.commitState as any,
                     trader: trade.trader,
                     isBuy: trade.isBuy,
-
-                    // Trade amounts
                     wmonAmount,
                     tokenAmount,
                     pricePerToken,
                     usdAmount,
-
-                    // Side-agnostic amounts
                     amountIn: trade.isBuy ? wmonAmount : tokenAmount,
                     amountOut: trade.isBuy ? tokenAmount : wmonAmount,
                     inAsset: trade.isBuy ? 'WMON' : 'TOKEN',
-
-                    // Event metadata
-                    eventSignature: trade.eventSignature,
-
-                    // Trading context
+                    eventSignature: 'unknown',
                     source: 'curve',
                     isCreatorTrade: false,
-                    timestamp: trade.blockTimestamp, // Accurate block timestamp
-
-                    // Market data
+                    timestamp: trade.blockTimestamp,
                     curveProgress,
                     marketCap,
                     liquidityUsd,
-
-                    // Raw amounts
                     amountWmonRaw: wmonAmount,
                     amountTokenRaw: tokenAmount,
-
-                    // Enhanced virtual reserves
                     virtualWmonReserve: this.bigIntToNumber(trade.reserves.reserve3, 18),
                     virtualTokenReserve: this.bigIntToNumber(trade.reserves.reserve4, 18),
-
                     usdSpotPrice
                 },
                 update: {
-                    // Update on reorg/commit state changes
                     commitState: trade.commitState as any,
                     blockNumber: trade.blockNumber,
                     blockId: trade.blockHash,
@@ -289,48 +198,48 @@ export class EnhancedTradeProcessor {
                 }
             });
 
-            console.log(`[⚡ ENHANCED] Trade processed: ${trade.tokenAddress} ${trade.isBuy ? 'BUY' : 'SELL'} - Block: ${trade.blockHash.slice(0, 10)}...`);
+            // Record successful database operation
+            const dbLatency = Date.now() - startTime;
+            sharedMetrics.recordDatabaseOperation('trade_upsert', dbLatency, true);
+
         } catch (error) {
+            // Record failed database operation
+            const dbLatency = Date.now() - startTime;
+            sharedMetrics.recordDatabaseOperation('trade_upsert', dbLatency, false);
             console.error(`[❌ ENHANCED] Database write failed:`, error);
             throw error;
         }
     }
 
-    private bigIntToNumber(value: bigint, decimals: number): number {
-        const stringValue = value.toString();
-        if (stringValue.length <= decimals) {
-            const decimalPart = stringValue.padStart(decimals, '0');
-            return parseFloat(`0.${decimalPart}`);
-        } else {
-            const integerPart = stringValue.slice(0, -decimals) || '0';
-            const decimalPart = stringValue.slice(-decimals);
-            return parseFloat(`${integerPart}.${decimalPart}`);
-        }
-    }
-
-    private calculateCurveProgress(reserves: { reserve1: bigint; reserve2: bigint; reserve3: bigint; reserve4: bigint }): number {
-        try {
-            const realTokenReserve = this.bigIntToNumber(reserves.reserve2, 18);
-            const virtualTokenReserve = this.bigIntToNumber(reserves.reserve4, 18);
-
-            if (virtualTokenReserve === 0) return 0;
-
-            const tokensSold = realTokenReserve;
-            const migrationThreshold = virtualTokenReserve * 0.8;
-            const progress = Math.min(tokensSold / migrationThreshold, 1.0);
-
-            return Math.round(progress * 10000) / 100;
-        } catch (error) {
-            return 0;
-        }
+    /**
+     * Convert BigInt to number with proper decimal handling
+     */
+    private bigIntToNumber(value: bigint, decimals: number = 18): number {
+        const divisor = BigInt(10 ** decimals);
+        const integerPart = Number(value / divisor);
+        const decimalPart = Number(value % divisor) / Number(divisor);
+        return integerPart + decimalPart;
     }
 
     /**
-     * Clear caches periodically for memory management
+     * Calculate bonding curve progress (0-100%)
+     */
+    private calculateCurveProgress(reserves: { reserve1: bigint; reserve2: bigint; reserve3: bigint; reserve4: bigint }): number {
+        // Simplified curve progress calculation
+        const totalVirtualToken = Number(reserves.reserve4);
+        
+        if (totalVirtualToken === 0) return 0;
+        
+        // Progress based on how much of the virtual token supply has been bought
+        const progress = Math.min(100, (1000000000 - totalVirtualToken) / 1000000000 * 100);
+        return Math.max(0, progress);
+    }
+
+    /**
+     * Clear caches periodically to prevent memory leaks
      */
     clearCaches(): void {
         this.blockCache.clear();
         this.reserveCache.clear();
-        console.log('[🧹 ENHANCED] Caches cleared');
     }
 }
