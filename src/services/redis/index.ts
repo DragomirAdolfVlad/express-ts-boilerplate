@@ -17,3 +17,6 @@ export * from './redis-health';
 
 // Cache invalidation patterns
 export * from './cache-invalidation';
+
+// Tracker-specific cache with pipelines and real-time updates
+export * from './tracker-cache.service';

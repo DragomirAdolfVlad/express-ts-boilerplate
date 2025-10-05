@@ -99,6 +99,10 @@ prisma/dev.db-journal
 # Docker
 .dockerignore
 
+# Markdown files (exclude README.md)
+*.md
+!README.md
+
 # Runtime metrics and temporary files
 temp-metrics.json
 token-metadata-results.json

@@ -8,7 +8,6 @@
 import { JsonRpcProvider } from 'ethers';
 import { PrismaClient } from '@prisma/client';
 import { OptimizedTokenCreationTracker } from './optimized-tracker';
-import { sharedMetrics } from '../../utils/shared-metrics';
 
 interface EnhancedTradeData {
     tokenAddress: string;
@@ -198,15 +197,14 @@ export class EnhancedTradeProcessor {
                 }
             });
 
-            // Record successful database operation
             const dbLatency = Date.now() - startTime;
-            sharedMetrics.recordDatabaseOperation('trade_upsert', dbLatency, true);
+            if (dbLatency > 100) {
+                console.log(`[⚠️  DB] Slow trade upsert: ${dbLatency}ms for ${uniqueTradeId}`);
+            }
 
         } catch (error) {
-            // Record failed database operation
             const dbLatency = Date.now() - startTime;
-            sharedMetrics.recordDatabaseOperation('trade_upsert', dbLatency, false);
-            console.error(`[❌ ENHANCED] Database write failed:`, error);
+            console.error(`[❌ ENHANCED] Database write failed after ${dbLatency}ms:`, error);
             throw error;
         }
     }

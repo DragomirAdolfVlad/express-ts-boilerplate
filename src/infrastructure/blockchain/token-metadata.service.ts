@@ -87,12 +87,12 @@ export class TokenMetadataService {
       
       // Process name
       if (results[0].status === 'fulfilled') {
-        metadata.name = results[0].value;
+        metadata.name = results[0].value as string;
       }
       
       // Process symbol
       if (results[1].status === 'fulfilled') {
-        metadata.symbol = results[1].value;
+        metadata.symbol = results[1].value as string;
       }
       
       // Process decimals with validation
@@ -105,7 +105,7 @@ export class TokenMetadataService {
       
       // Process total supply
       if (results[3].status === 'fulfilled') {
-        metadata.totalSupply = results[3].value.toString();
+        metadata.totalSupply = (results[3].value as bigint).toString();
       }
       
       // Validate NAD.FUN token standards

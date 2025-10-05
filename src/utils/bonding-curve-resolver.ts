@@ -53,6 +53,8 @@ export class BondingCurveResolver {
   /**
    * Extract bonding curve address from transaction receipt by analyzing CurveCreate events
    */
+  // @ts-ignore - Method kept for future use
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   private async extractBondingCurveFromReceipt(txHash: string, tokenAddress: string): Promise<string | null> {
     try {
       // Get transaction receipt

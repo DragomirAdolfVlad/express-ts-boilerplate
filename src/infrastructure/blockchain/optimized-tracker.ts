@@ -11,8 +11,8 @@
 
 import { JsonRpcProvider, WebSocketProvider, ethers } from 'ethers';
 import { PrismaClient } from '@prisma/client';
-import { sharedMetrics } from '../../utils/shared-metrics';
-// Removed unused import
+import { BLOCKCHAIN_CONFIG } from '../../config/blockchain.config';
+import { TrackerRedisIntegration } from './tracker-redis-integration';
 
 interface BatchRequest {
   method: string;
@@ -33,26 +33,18 @@ class OptimizedRPCManager {
   private cache = new Map<string, CacheEntry<any>>();
   private requestCount = 0;
   private lastResetTime = Date.now();
+  private cacheCleanupTimer?: NodeJS.Timeout;
   
-  private readonly config = {
-    batchSize: 10,
-    batchTimeout: 100, // ms
-    maxRequestsPerSecond: 400, // Under QuickNode limit
-    cacheDefaultTTL: 30000, // 30 seconds
-    maxCacheSize: 1000
-  };
-
-  constructor(private provider: JsonRpcProvider) {}
+  constructor(private provider: JsonRpcProvider) {
+    // Start periodic cache cleanup
+    this.startCacheCleanup();
+  }
 
   async request(method: string, params: any[]): Promise<any> {
-    const startTime = Date.now();
-    
     // Check cache first
     const cacheKey = `${method}:${JSON.stringify(params)}`;
     const cached = this.getFromCache(cacheKey);
     if (cached) {
-      // Record cache hit
-      sharedMetrics.recordRPCCall(method, Date.now() - startTime, true);
       return cached;
     }
 
@@ -60,23 +52,7 @@ class OptimizedRPCManager {
     await this.enforceRateLimit();
 
     return new Promise((resolve, reject) => {
-      const originalResolve = resolve;
-      const originalReject = reject;
-      
-      this.requestQueue.push({ 
-        method, 
-        params, 
-        resolve: (value: any) => {
-          const latency = Date.now() - startTime;
-          sharedMetrics.recordRPCCall(method, latency, true);
-          originalResolve(value);
-        },
-        reject: (error: any) => {
-          const latency = Date.now() - startTime;
-          sharedMetrics.recordRPCCall(method, latency, false);
-          originalReject(error);
-        }
-      });
+      this.requestQueue.push({ method, params, resolve, reject });
       this.scheduleBatch();
     });
   }
@@ -93,9 +69,9 @@ class OptimizedRPCManager {
     return entry.data;
   }
 
-  private setCache(key: string, data: any, ttl: number = this.config.cacheDefaultTTL) {
+  private setCache(key: string, data: any, ttl: number = BLOCKCHAIN_CONFIG.CACHE_DEFAULT_TTL_MS) {
     // Prevent cache from growing too large
-    if (this.cache.size >= this.config.maxCacheSize) {
+    if (this.cache.size >= BLOCKCHAIN_CONFIG.CACHE_MAX_SIZE) {
       const oldestKey = this.cache.keys().next().value;
       if (oldestKey) {
         this.cache.delete(oldestKey);
@@ -115,7 +91,7 @@ class OptimizedRPCManager {
       this.lastResetTime = now;
     }
     
-    if (this.requestCount >= this.config.maxRequestsPerSecond) {
+    if (this.requestCount >= BLOCKCHAIN_CONFIG.RPC_MAX_REQUESTS_PER_SECOND) {
       const waitTime = 1000 - timeSinceReset;
       await new Promise(resolve => setTimeout(resolve, waitTime));
       this.requestCount = 0;
@@ -128,13 +104,13 @@ class OptimizedRPCManager {
     
     this.batchTimer = setTimeout(() => {
       this.processBatch();
-    }, this.config.batchTimeout);
+    }, BLOCKCHAIN_CONFIG.RPC_BATCH_TIMEOUT_MS);
   }
 
   private async processBatch() {
     if (this.requestQueue.length === 0) return;
     
-    const batch = this.requestQueue.splice(0, this.config.batchSize);
+    const batch = this.requestQueue.splice(0, BLOCKCHAIN_CONFIG.RPC_BATCH_SIZE);
     this.batchTimer = undefined;
     
     // Group similar requests
@@ -277,16 +253,47 @@ class OptimizedRPCManager {
     }
   }
 
+  /**
+   * Start periodic cache cleanup to prevent memory leaks
+   */
+  private startCacheCleanup() {
+    this.cacheCleanupTimer = setInterval(() => {
+      const now = Date.now();
+      let cleaned = 0;
+      
+      for (const [key, entry] of this.cache.entries()) {
+        if (now - entry.timestamp > entry.ttl) {
+          this.cache.delete(key);
+          cleaned++;
+        }
+      }
+      
+      if (cleaned > 0) {
+        console.log(`[🧹 CACHE] Cleaned ${cleaned} expired entries, ${this.cache.size} remaining`);
+      }
+    }, BLOCKCHAIN_CONFIG.CACHE_CLEANUP_INTERVAL_MS);
+  }
+
   clearCache() {
     this.cache.clear();
+  }
+
+  destroy() {
+    if (this.cacheCleanupTimer) {
+      clearInterval(this.cacheCleanupTimer);
+    }
+    if (this.batchTimer) {
+      clearTimeout(this.batchTimer);
+    }
+    this.cache.clear();
+    this.requestQueue = [];
   }
 
   getStats() {
     return {
       queueSize: this.requestQueue.length,
       cacheSize: this.cache.size,
-      requestsPerSecond: this.requestCount,
-      cacheHitRate: 0 // Would need to track hits/misses
+      requestsPerSecond: this.requestCount
     };
   }
 }
@@ -299,6 +306,8 @@ export class OptimizedTokenCreationTracker {
   private lastCacheUpdate = 0;
   private currentBlockTimestamp: Date = new Date();
   private readonly CACHE_TTL = 60000; // 1 minute
+  private redisIntegration: TrackerRedisIntegration;
+  private redisEnabled = false;
 
   constructor(
     private provider: JsonRpcProvider | WebSocketProvider,
@@ -307,6 +316,7 @@ export class OptimizedTokenCreationTracker {
   ) {
     const rpcProvider = httpProvider || (provider instanceof JsonRpcProvider ? provider : new JsonRpcProvider(process.env['MONAD_RPC_URL']));
     this.rpcManager = new OptimizedRPCManager(rpcProvider);
+    this.redisIntegration = new TrackerRedisIntegration(prisma);
   }
 
   async start(): Promise<void> {
@@ -316,6 +326,22 @@ export class OptimizedTokenCreationTracker {
     console.log('   ⚡ RPC request batching enabled');
     console.log('   🛡️  Rate limiting protection active');
     console.log('   💾 Memory management optimized');
+    // Redis integration (disabled by default due to memory optimization)
+    const ENABLE_REDIS = process.env['ENABLE_REDIS_CACHE'] === 'true';
+    this.redisEnabled = ENABLE_REDIS;
+    
+    if (ENABLE_REDIS) {
+      console.log('   🔥 Redis live-data integration enabled');
+      try {
+        await this.redisIntegration.initialize();
+        console.log('   ✅ Redis pub/sub and pipelines ready');
+      } catch (error) {
+        console.warn('   ⚠️  Redis initialization failed (continuing without cache):', error);
+        this.redisEnabled = false;
+      }
+    } else {
+      console.log('   ℹ️  Redis cache disabled (set ENABLE_REDIS_CACHE=true to enable)');
+    }
     
     this.isRunning = true;
 
@@ -392,11 +418,9 @@ export class OptimizedTokenCreationTracker {
       const processingTime = Date.now() - startTime;
       const eventCount = allLogs ? allLogs.length : 0;
       
-      // Record block processing metrics
-      sharedMetrics.recordBlockProcessing(blockNumber, processingTime, eventCount);
-      
+      // Log performance stats periodically
       if (blockNumber % 10 === 0) {
-        console.log(`⚡ PERFORMANCE: Block ${blockNumber} processed in ${processingTime}ms`);
+        console.log(`⚡ PERFORMANCE: Block ${blockNumber} processed in ${processingTime}ms (${eventCount} events)`);
         console.log(`   RPC Stats: ${JSON.stringify(this.rpcManager.getStats())}`);
       }
 
@@ -421,6 +445,8 @@ export class OptimizedTokenCreationTracker {
   }
 
   private async processEventsInParallel(logs: any[]): Promise<void> {
+    if (!logs || logs.length === 0) return;
+
     // Deduplicate events
     const uniqueLogs = logs.filter(log => {
       const eventId = `${log.transactionHash}:${log.logIndex}`;
@@ -428,6 +454,8 @@ export class OptimizedTokenCreationTracker {
       this.processedEvents.add(eventId);
       return true;
     });
+
+    if (uniqueLogs.length === 0) return;
 
     // Prevent memory leak - keep only recent events
     if (this.processedEvents.size > 10000) {
@@ -437,16 +465,51 @@ export class OptimizedTokenCreationTracker {
       eventsArray.slice(-5000).forEach(id => this.processedEvents.add(id));
     }
 
-    // Process events in parallel with concurrency limit
-    const concurrencyLimit = 10;
-    const chunks = [];
-    for (let i = 0; i < uniqueLogs.length; i += concurrencyLimit) {
-      chunks.push(uniqueLogs.slice(i, i + concurrencyLimit));
+    const startTime = Date.now();
+
+    // Process events with smart concurrency based on config
+    if (BLOCKCHAIN_CONFIG.PARALLEL_EVENT_PROCESSING) {
+      // Parallel processing with concurrency limit
+      await this.processEventsWithConcurrency(uniqueLogs, BLOCKCHAIN_CONFIG.MAX_CONCURRENT_EVENTS);
+    } else {
+      // Sequential processing (safer but slower)
+      for (const log of uniqueLogs) {
+        await this.processEventSafely(log);
+      }
     }
 
-    for (const chunk of chunks) {
-      await Promise.all(chunk.map(log => this.processEventSafely(log)));
+    const duration = Date.now() - startTime;
+    if (uniqueLogs.length > 5) {
+      console.log(`⚡ PARALLEL: Processed ${uniqueLogs.length} events in ${duration}ms (${Math.round(uniqueLogs.length / (duration / 1000))} events/sec)`);
     }
+  }
+
+  /**
+   * Process events with controlled concurrency to prevent overload
+   */
+  private async processEventsWithConcurrency(logs: any[], concurrencyLimit: number): Promise<void> {
+    const results: Promise<void>[] = [];
+    let activeCount = 0;
+
+    for (const log of logs) {
+      // Wait if we've hit the concurrency limit
+      while (activeCount >= concurrencyLimit) {
+        await Promise.race(results);
+        activeCount = results.filter(p => p && typeof p === 'object').length;
+      }
+
+      // Process event
+      const promise = this.processEventSafely(log)
+        .finally(() => {
+          activeCount--;
+        });
+
+      results.push(promise);
+      activeCount++;
+    }
+
+    // Wait for all remaining events
+    await Promise.allSettled(results);
   }
 
   private async processEventSafely(log: any): Promise<void> {
@@ -513,8 +576,45 @@ export class OptimizedTokenCreationTracker {
 
       console.log(`🎉 OPTIMIZED CURVE CREATE: ${name} (${symbol}) by ${creator}`);
 
-      // Save to database with batch operation
-      await this.prisma.monadLaunchedToken.upsert({
+      // Fetch extended metadata from NAD.FUN API
+      let metadata = null;
+      try {
+        const { nadFunApi } = await import('../external/nadfun-api.service');
+        console.log(`🔍 METADATA: Fetching for ${tokenAddress}...`);
+        metadata = await nadFunApi.getTokenMetadata(tokenAddress);
+        if (metadata) {
+          console.log(`✅ METADATA: Retrieved for ${metadata.name} (${metadata.symbol})`);
+        } else {
+          console.warn(`⚠️  METADATA: Not found for ${tokenAddress}`);
+        }
+      } catch (metadataError) {
+        console.warn(`⚠️  METADATA: Failed to fetch for ${tokenAddress}:`, metadataError);
+      }
+
+      // Create metadata record if we have extended data
+      let metadataId: number | undefined = undefined;
+      if (metadata && (metadata.description || metadata.image_uri || metadata.website || metadata.twitter || metadata.telegram)) {
+        try {
+          const metadataRecord = await this.prisma.monadTokenMetadata.create({
+            data: {
+              name: metadata.name || name,
+              symbol: metadata.symbol || symbol,
+              description: metadata.description || undefined,
+              image: metadata.image_uri || undefined,
+              website: metadata.website ? { url: metadata.website } : undefined,
+              twitter: metadata.twitter || undefined,
+              telegram: metadata.telegram || undefined
+            }
+          });
+          metadataId = metadataRecord.id;
+          console.log(`📝 METADATA: Created record ${metadataId} for ${tokenAddress}`);
+        } catch (metadataCreateError) {
+          console.error(`❌ METADATA: Failed to create record:`, metadataCreateError);
+        }
+      }
+
+      // Save token to database with metadata link
+      const savedToken = await this.prisma.monadLaunchedToken.upsert({
         where: { token: tokenAddress },
         create: {
           platform: 'monad',
@@ -526,15 +626,38 @@ export class OptimizedTokenCreationTracker {
           blockId: log.blockHash || 'unknown',
           commitState: 'verified',
           timestamp: new Date(),
-          name,
-          symbol
+          name: metadata?.name || name,
+          symbol: metadata?.symbol || symbol,
+          metadataId
         },
         update: {
           bondingCurve,
-          name: name || undefined,
-          symbol: symbol || undefined
+          name: metadata?.name || name || undefined,
+          symbol: metadata?.symbol || symbol || undefined,
+          metadataId: metadataId || undefined
         }
       });
+
+      // 🔥 CACHE IN REDIS + PUBLISH EVENT (Real-time updates!)
+      if (this.redisEnabled) {
+        try {
+          await this.redisIntegration.cacheTokenFromEvent({
+            tokenAddress: savedToken.token,
+            name: savedToken.name || 'Unknown',
+            symbol: savedToken.symbol || '???',
+            creator: savedToken.creator,
+            bondingCurve: savedToken.bondingCurve,
+            blockNumber: savedToken.blockNumber,
+            blockHash: savedToken.blockId,
+            timestamp: savedToken.timestamp,
+            transactionHash: savedToken.signature,
+            metadataId: savedToken.metadataId || undefined
+          });
+          console.log(`🔥 REDIS: Cached token ${savedToken.name} + published TOKEN_CREATED event`);
+        } catch (redisError) {
+          console.warn('⚠️  Redis cache failed (non-fatal):', redisError);
+        }
+      }
 
       // Invalidate bonding curve cache
       this.lastCacheUpdate = 0;
@@ -632,6 +755,27 @@ export class OptimizedTokenCreationTracker {
         log.blockHash,   // Real block hash from log
         this.currentBlockTimestamp // Real timestamp from block
       );
+
+      // 🔥 CACHE TRADE IN REDIS + PUBLISH EVENT (Real-time updates!)
+      if (this.redisEnabled) {
+        try {
+          const uniqueTradeId = `${log.transactionHash}:${parseInt(log.logIndex, 16)}`;
+          await this.redisIntegration.cacheTradeFromEvent({
+            uniqueTradeId,
+            tokenAddress,
+            trader,
+            isBuy,
+            ethAmount: wmonAmount.toString(),
+            tokenAmount: tokenAmount.toString(),
+            pricePerToken: pricePerToken.toString(),
+            blockNumber: log.blockNumber.toString(),
+            timestamp: this.currentBlockTimestamp
+          });
+          console.log(`🔥 REDIS: Cached trade ${isBuy ? 'BUY' : 'SELL'} + published TRADE_EXECUTED event`);
+        } catch (redisError) {
+          console.warn('⚠️  Redis trade cache failed (non-fatal):', redisError);
+        }
+      }
 
     } catch (error) {
       console.error('❌ OPTIMIZED TRADE: Failed to process:', error);

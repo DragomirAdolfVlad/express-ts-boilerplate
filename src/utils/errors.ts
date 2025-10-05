@@ -335,3 +335,186 @@ export function createErrorFromUnknown(error: unknown, context?: ErrorContext): 
 
     return new InternalServerError('Unknown error occurred', context);
 }
+
+// =============================================================================
+// BLOCKCHAIN-SPECIFIC ERROR UTILITIES
+// =============================================================================
+
+/**
+ * Check if error is retryable for RPC operations
+ */
+export function isRetryableRPCError(error: Error): boolean {
+    const retryableMessages = [
+        'archiver',
+        'timeout',
+        'network',
+        'ECONNRESET',
+        'ETIMEDOUT',
+        'rate limit',
+        'invalid block range'
+    ];
+    return retryableMessages.some(msg => 
+        error.message?.toLowerCase().includes(msg.toLowerCase())
+    );
+}
+
+/**
+ * Check if error is retryable for database operations
+ */
+export function isRetryableDBError(error: Error): boolean {
+    const retryableMessages = [
+        'deadlock',
+        'lock timeout',
+        'connection',
+        'ECONNREFUSED'
+    ];
+    return retryableMessages.some(msg => 
+        error.message?.toLowerCase().includes(msg.toLowerCase())
+    );
+}
+
+/**
+ * Check if error is retryable for API operations
+ */
+export function isRetryableAPIError(error: Error): boolean {
+    const retryableMessages = [
+        'timeout',
+        '429', // Rate limit
+        '502', // Bad gateway
+        '503', // Service unavailable
+        '504'  // Gateway timeout
+    ];
+    return retryableMessages.some(msg => 
+        error.message?.toLowerCase().includes(msg.toLowerCase())
+    );
+}
+
+/**
+ * Retry utility with exponential backoff
+ */
+export async function withRetry<T>(
+    operation: () => Promise<T>,
+    options: {
+        maxAttempts?: number;
+        baseDelay?: number;
+        maxDelay?: number;
+        backoffFactor?: number;
+        isRetryable?: (error: Error) => boolean;
+        onRetry?: (error: Error, attempt: number) => void;
+        context?: string;
+    } = {}
+): Promise<T> {
+    const {
+        maxAttempts = 3,
+        baseDelay = 1000,
+        maxDelay = 30000,
+        backoffFactor = 2,
+        isRetryable = () => true,
+        onRetry,
+        context = 'operation'
+    } = options;
+
+    let lastError: Error;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            return await operation();
+        } catch (error) {
+            lastError = error instanceof Error ? error : new Error(String(error));
+
+            // Don't retry if not retryable or last attempt
+            if (!isRetryable(lastError) || attempt === maxAttempts) {
+                throw lastError;
+            }
+
+            // Calculate delay with exponential backoff
+            const delay = Math.min(
+                baseDelay * Math.pow(backoffFactor, attempt - 1),
+                maxDelay
+            );
+
+            // Add jitter (±25%)
+            const jitter = delay * (0.75 + Math.random() * 0.5);
+
+            if (onRetry) {
+                onRetry(lastError, attempt);
+            }
+
+            console.warn(`⚠️  ${context}: Retry ${attempt}/${maxAttempts} after ${Math.round(jitter)}ms - ${lastError.message}`);
+            
+            await new Promise(resolve => setTimeout(resolve, jitter));
+        }
+    }
+
+    throw lastError!;
+}
+
+/**
+ * Circuit breaker for external services
+ */
+export class CircuitBreaker {
+    private failureCount = 0;
+    private lastFailureTime = 0;
+    private state: 'closed' | 'open' | 'half-open' = 'closed';
+
+    constructor(
+        private readonly name: string,
+        private readonly threshold: number = 5,
+        private readonly resetTimeout: number = 30000 // 30 seconds
+    ) {}
+
+    async execute<T>(operation: () => Promise<T>): Promise<T> {
+        if (this.state === 'open') {
+            const now = Date.now();
+            if (now - this.lastFailureTime >= this.resetTimeout) {
+                console.log(`🔄 Circuit breaker [${this.name}]: Attempting recovery (half-open)`);
+                this.state = 'half-open';
+            } else {
+                throw new ServiceUnavailableError(
+                    `Circuit breaker [${this.name}] is open`,
+                    undefined,
+                    { failureCount: this.failureCount.toString() }
+                );
+            }
+        }
+
+        try {
+            const result = await operation();
+            
+            // Success - reset circuit breaker
+            if (this.state === 'half-open') {
+                console.log(`✅ Circuit breaker [${this.name}]: Recovered (closed)`);
+                this.state = 'closed';
+                this.failureCount = 0;
+            }
+            
+            return result;
+        } catch (error) {
+            this.failureCount++;
+            this.lastFailureTime = Date.now();
+
+            if (this.failureCount >= this.threshold) {
+                console.error(`🔴 Circuit breaker [${this.name}]: OPEN (${this.failureCount} failures)`);
+                this.state = 'open';
+            }
+
+            throw error;
+        }
+    }
+
+    reset() {
+        this.state = 'closed';
+        this.failureCount = 0;
+        this.lastFailureTime = 0;
+        console.log(`🔄 Circuit breaker [${this.name}]: Manually reset`);
+    }
+
+    getState() {
+        return {
+            name: this.name,
+            state: this.state,
+            failureCount: this.failureCount,
+            lastFailureTime: this.lastFailureTime
+        };
+    }
+}
