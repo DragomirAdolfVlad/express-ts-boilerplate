@@ -52,7 +52,7 @@ export class MonadTokenLaunchService {
     console.log('   🏭 Factory event monitoring');
     console.log('   📊 First trade detection');
     console.log('   🔍 Metadata enrichment');
-    
+
     this.isRunning = true;
 
     // Start the token creation tracker
@@ -385,7 +385,7 @@ export class MonadTokenLaunchService {
     try {
       // Primary source: NAD.FUN API
       const nadFunMetadata = await nadFunApi.getTokenMetadata(tokenAddress);
-      
+
       if (nadFunMetadata) {
         return {
           name: nadFunMetadata.name,
@@ -403,7 +403,7 @@ export class MonadTokenLaunchService {
       // - On-chain contract calls for name/symbol
       // - IPFS metadata fetching
       // - Other token registry APIs
-      
+
       return null;
     } catch (error) {
       console.warn(`⚠️  SOURCES: Failed to fetch metadata for ${tokenAddress}:`, error);
@@ -451,7 +451,7 @@ export class MonadTokenLaunchService {
   }> {
     try {
       const totalTokens = await this.prisma.monadLaunchedToken.count();
-      
+
       const recentLaunches = await this.prisma.monadLaunchedToken.count({
         where: {
           timestamp: {

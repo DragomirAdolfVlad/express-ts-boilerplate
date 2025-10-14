@@ -308,6 +308,8 @@ export class OptimizedTokenCreationTracker {
   private readonly CACHE_TTL = 60000; // 1 minute
   private redisIntegration: TrackerRedisIntegration;
   private redisEnabled = false;
+  private memoryCleanupTimer?: NodeJS.Timeout;
+  private readonly MAX_PROCESSED_EVENTS = 5000; // Limit to prevent memory leak
 
   constructor(
     private provider: JsonRpcProvider | WebSocketProvider,
@@ -344,6 +346,9 @@ export class OptimizedTokenCreationTracker {
     }
     
     this.isRunning = true;
+
+    // Start memory monitoring and cleanup
+    this.startMemoryMonitoring();
 
     if (this.provider instanceof WebSocketProvider) {
       this.provider.on('block', async (blockNumber) => {
@@ -457,12 +462,14 @@ export class OptimizedTokenCreationTracker {
 
     if (uniqueLogs.length === 0) return;
 
-    // Prevent memory leak - keep only recent events
-    if (this.processedEvents.size > 10000) {
+    // CRITICAL: Prevent memory leak - keep only recent events
+    if (this.processedEvents.size > this.MAX_PROCESSED_EVENTS) {
       const eventsArray = Array.from(this.processedEvents);
       this.processedEvents.clear();
-      // Keep only the most recent 5000
-      eventsArray.slice(-5000).forEach(id => this.processedEvents.add(id));
+      // Keep only the most recent half to reduce frequency of cleanup
+      const keepCount = Math.floor(this.MAX_PROCESSED_EVENTS / 2);
+      eventsArray.slice(-keepCount).forEach(id => this.processedEvents.add(id));
+      console.log(`[🧹 MEMORY] Cleaned processedEvents: ${eventsArray.length} → ${this.processedEvents.size}`);
     }
 
     const startTime = Date.now();
@@ -782,9 +789,73 @@ export class OptimizedTokenCreationTracker {
     }
   }
   
+  /**
+   * Start memory monitoring to prevent leaks
+   */
+  private startMemoryMonitoring(): void {
+    this.memoryCleanupTimer = setInterval(() => {
+      const memUsage = process.memoryUsage();
+      const heapUsedMB = Math.round(memUsage.heapUsed / 1024 / 1024);
+      const heapTotalMB = Math.round(memUsage.heapTotal / 1024 / 1024);
+      const externalMB = Math.round(memUsage.external / 1024 / 1024);
+      
+      console.log(`[💾 MEMORY] Heap: ${heapUsedMB}/${heapTotalMB} MB | External: ${externalMB} MB | Events: ${this.processedEvents.size}`);
+      
+      // Trigger aggressive cleanup if memory usage is high (>80% of 4GB default)
+      if (heapUsedMB > 3200) {
+        console.warn(`[⚠️  MEMORY] High memory usage detected! Triggering cleanup...`);
+        this.performAggressiveCleanup();
+      }
+    }, 60000); // Every minute
+  }
+
+  /**
+   * Perform aggressive cleanup when memory is high
+   */
+  private performAggressiveCleanup(): void {
+    console.log('[🧹 MEMORY] Starting aggressive cleanup...');
+    
+    // Clear processed events (keep only last 1000)
+    if (this.processedEvents.size > 1000) {
+      const eventsArray = Array.from(this.processedEvents);
+      this.processedEvents.clear();
+      eventsArray.slice(-1000).forEach(id => this.processedEvents.add(id));
+      console.log(`[🧹 MEMORY] Cleared processedEvents: ${eventsArray.length} → ${this.processedEvents.size}`);
+    }
+    
+    // Clear RPC cache
+    this.rpcManager.clearCache();
+    console.log('[🧹 MEMORY] Cleared RPC cache');
+    
+    // Clear bonding curve cache
+    this.bondingCurveCache = [];
+    this.lastCacheUpdate = 0;
+    console.log('[🧹 MEMORY] Cleared bonding curve cache');
+    
+    // Force garbage collection if available
+    if (global.gc) {
+      global.gc();
+      console.log('[🧹 MEMORY] Forced garbage collection');
+    } else {
+      console.log('[⚠️  MEMORY] Garbage collection not available (run with --expose-gc)');
+    }
+    
+    const memUsage = process.memoryUsage();
+    const heapUsedMB = Math.round(memUsage.heapUsed / 1024 / 1024);
+    console.log(`[✅ MEMORY] Cleanup complete. Current heap: ${heapUsedMB} MB`);
+  }
+  
   async stop(): Promise<void> {
     this.isRunning = false;
+    
+    // Stop memory monitoring
+    if (this.memoryCleanupTimer) {
+      clearInterval(this.memoryCleanupTimer);
+    }
+    
+    // Cleanup resources
     this.rpcManager.clearCache();
+    this.rpcManager.destroy();
     this.processedEvents.clear();
     this.bondingCurveCache = [];
     

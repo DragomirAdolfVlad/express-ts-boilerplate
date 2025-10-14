@@ -7,6 +7,7 @@ import userRoutes from './users';
 import authRoutes from './auth';
 import healthRoutes from './health';
 import trackerRoutes from './tracker';
+import tokensRoutes from './tokens';
 import { log } from '../../../utils/logger';
 
 const router = Router();
@@ -16,6 +17,7 @@ router.use('/users', userRoutes);
 router.use('/auth', authRoutes);
 router.use('/health', healthRoutes);
 router.use('/tracker', trackerRoutes);
+router.use('/tokens', tokensRoutes);
 
 // Import health controller for direct routes
 import { HealthController } from '../../controllers/health-controller';
@@ -48,6 +50,8 @@ router.get('/', (req, res) => {
             users: '/api/v1/users',
             auth: '/api/v1/auth',
             health: '/api/v1/health',
+            tracker: '/api/v1/tracker',
+            tokens: '/api/v1/tokens',
             metrics: '/api/v1/metrics',
             info: '/api/v1/info',
             docs: '/api-docs'
@@ -121,7 +125,15 @@ router.use('*', (req, res) => {
                     'GET /api/v1/health/ready',
                     'GET /api/v1/health/live',
                     'GET /api/v1/metrics',
-                    'GET /api/v1/info'
+                    'GET /api/v1/info',
+                    'GET /api/v1/tokens/latest',
+                    'GET /api/v1/tokens/pre-bond',
+                    'GET /api/v1/tokens/stats',
+                    'GET /api/v1/tokens/:tokenAddress/exists',
+                    'GET /api/v1/tokens/:tokenAddress/overview',
+                    'GET /api/v1/tokens/:tokenAddress/trading-data',
+                    'GET /api/v1/tokens/:tokenAddress/holders',
+                    'GET /api/v1/tokens/:tokenAddress/traders'
                 ]
             }
         },

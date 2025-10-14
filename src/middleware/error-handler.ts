@@ -6,12 +6,21 @@ import { log } from '../utils/logger';
  * Centralized error handling middleware
  */
 
+/**
+ * Task 9.3: Consistent error response format
+ * Requirements: 9
+ * 
+ * All errors follow this format:
+ * - success: false (always)
+ * - error: { message, code, status }
+ * - timestamp: ISO 8601 format
+ */
 export interface ErrorResponse {
     success: false;
     error: {
         message: string;
         code: string;
-        statusCode: number;
+        status: number;
         correlationId?: string;
         timestamp: string;
         details?: Record<string, unknown>;
@@ -47,30 +56,65 @@ export function errorHandler(
 
 /**
  * Log error with appropriate level
+ * Task 9.2: Enhanced error logging with comprehensive context
+ * Requirements: 9
  */
 function logError(error: AppError, req: Request): void {
+    // Build comprehensive log context with request params, stack trace, and timestamp
     const logContext = {
+        // Request identification
         correlationId: req.headers['x-correlation-id'] as string,
-        userId: (req as any).user?.id,
         requestId: req.headers['x-request-id'] as string,
+        
+        // User context
+        userId: (req as any).user?.id,
+        apiKeyId: (req as any).apiKey?.keyId,
+        
+        // Request details
         method: req.method,
         url: req.url,
+        path: req.path,
+        query: req.query,
+        params: req.params,
+        
+        // Client information
         userAgent: req.headers['user-agent'],
         ip: req.ip,
+        referer: req.headers['referer'],
+        
+        // Error details
         statusCode: error.statusCode,
         errorName: error.name,
-        isOperational: error.isOperational
+        errorMessage: error.message,
+        isOperational: error.isOperational,
+        
+        // Timestamp
+        timestamp: new Date().toISOString(),
+        
+        // Stack trace (for server errors)
+        ...(error.statusCode >= 500 && { stack: error.stack })
     };
 
     if (error.statusCode >= 500) {
-        // Server errors - log as error
+        // Server errors - log as error with full details
         log.error(`Server Error: ${error.message}`, {
             ...logContext,
-            error: error.toJSON()
+            error: error.toJSON(),
+            // Include full error object for debugging
+            fullError: {
+                name: error.name,
+                message: error.message,
+                stack: error.stack,
+                context: error.context
+            }
         });
     } else if (error.statusCode >= 400) {
-        // Client errors - log as warning
-        log.warn(`Client Error: ${error.message}`, logContext);
+        // Client errors - log as warning with request context
+        log.warn(`Client Error: ${error.message}`, {
+            ...logContext,
+            // Include error-specific details
+            errorDetails: getErrorSpecificDetails(error)
+        });
     } else {
         // Other errors - log as info
         log.info(`Error: ${error.message}`, logContext);
@@ -79,17 +123,28 @@ function logError(error: AppError, req: Request): void {
 
 /**
  * Send formatted error response
+ * Task 9.3: Consistent error response formatting
+ * Requirements: 9
+ * 
+ * Ensures all errors follow consistent format:
+ * - Include error code, message, and status
+ * - Add timestamp to all error responses (ISO 8601)
+ * - Include correlation ID for tracing
  */
 function sendErrorResponse(error: AppError, res: Response): void {
     const isDevelopment = process.env['NODE_ENV'] === 'development';
+
+    // Map error names to standardized error codes
+    const errorCode = mapErrorNameToCode(error.name);
 
     const errorResponse: ErrorResponse = {
         success: false,
         error: {
             message: error.getPublicMessage(),
-            code: error.name,
-            statusCode: error.statusCode,
+            code: errorCode,
+            status: error.statusCode,
             correlationId: error.context?.correlationId as string,
+            // Timestamp in ISO 8601 format (YYYY-MM-DDTHH:mm:ss.sssZ)
             timestamp: error.timestamp.toISOString()
         }
     };
@@ -121,6 +176,29 @@ function sendErrorResponse(error: AppError, res: Response): void {
     }
 
     res.json(errorResponse);
+}
+
+/**
+ * Map error class names to standardized error codes
+ * Task 9.3: Standardized error codes
+ */
+function mapErrorNameToCode(errorName: string): string {
+    const errorCodeMap: Record<string, string> = {
+        'ValidationError': 'VALIDATION_ERROR',
+        'AuthenticationError': 'AUTHENTICATION_ERROR',
+        'UnauthorizedError': 'UNAUTHORIZED',
+        'AuthorizationError': 'AUTHORIZATION_ERROR',
+        'ForbiddenError': 'FORBIDDEN',
+        'NotFoundError': 'NOT_FOUND',
+        'ConflictError': 'CONFLICT',
+        'RateLimitError': 'RATE_LIMIT_EXCEEDED',
+        'InternalServerError': 'INTERNAL_ERROR',
+        'DatabaseError': 'DATABASE_ERROR',
+        'ExternalServiceError': 'EXTERNAL_SERVICE_ERROR',
+        'ServiceUnavailableError': 'SERVICE_UNAVAILABLE'
+    };
+
+    return errorCodeMap[errorName] || 'INTERNAL_ERROR';
 }
 
 /**

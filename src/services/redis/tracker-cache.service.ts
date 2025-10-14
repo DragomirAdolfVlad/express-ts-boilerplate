@@ -86,6 +86,14 @@ export class RedisTrackerCache {
     // Stats
     STATS_GLOBAL: `${this.KEY_PREFIX}stats:global`,
     STATS_TOKEN: (address: string) => `${this.KEY_PREFIX}stats:token:${address}`,
+    
+    // Token API caching (Task 8.1)
+    TOKEN_WITH_STATS: (address: string) => `${this.KEY_PREFIX}token:${address}:with-stats`,
+    TOKEN_STATS: (address: string) => `${this.KEY_PREFIX}token:${address}:stats`,
+    
+    // Holder/Trader rankings (Task 8.2)
+    HOLDER_RANKINGS: (address: string) => `${this.KEY_PREFIX}token:${address}:holders`,
+    TRADER_RANKINGS: (address: string) => `${this.KEY_PREFIX}token:${address}:traders`,
   };
   
   // Pub/Sub channels
@@ -104,6 +112,13 @@ export class RedisTrackerCache {
     PRICE_HISTORY: 86400, // 24 hours
     STATS: 60, // 1 minute
     METADATA: 7200, // 2 hours
+    
+    // Token API caching TTLs (Task 8.1)
+    TOKEN_WITH_STATS: 3600, // 1 hour for token data
+    TOKEN_STATS_ONLY: 60, // 1 minute for stats
+    
+    // Holder/Trader rankings TTLs (Task 8.2)
+    RANKINGS: 300, // 5 minutes
   };
 
   constructor() {
@@ -862,6 +877,208 @@ export class RedisTrackerCache {
       return { healthy: true, latency };
     } catch (error) {
       return { healthy: false, latency: -1 };
+    }
+  }
+
+  // ============================================================================
+  // TOKEN API CACHING (Task 8.1)
+  // ============================================================================
+
+  /**
+   * Cache token with stats (for API endpoints)
+   * TTL: 1 hour for token data, 1 minute for stats
+   */
+  async cacheTokenWithStats(tokenWithStats: any): Promise<void> {
+    try {
+      const pipeline = this.redis.pipeline();
+      const key = this.KEYS.TOKEN_WITH_STATS(tokenWithStats.address);
+      
+      // Store complete token with stats as JSON
+      pipeline.set(key, JSON.stringify(tokenWithStats));
+      pipeline.expire(key, this.TTL.TOKEN_WITH_STATS);
+      
+      await pipeline.exec();
+      
+      console.log(`💾 Cached token with stats: ${tokenWithStats.symbol} (${tokenWithStats.address})`);
+    } catch (error) {
+      console.error('Failed to cache token with stats:', error);
+      // Don't throw - cache failures should not break the application
+    }
+  }
+
+  /**
+   * Get token with stats from cache
+   * Returns null if not found or expired
+   */
+  async getTokenWithStats(tokenAddress: string): Promise<any | null> {
+    try {
+      const key = this.KEYS.TOKEN_WITH_STATS(tokenAddress);
+      const data = await this.redis.get(key);
+      
+      if (!data) {
+        return null;
+      }
+      
+      const tokenWithStats = JSON.parse(data);
+      
+      // Convert timestamp strings back to Date objects
+      if (tokenWithStats.timestamp) {
+        tokenWithStats.timestamp = new Date(tokenWithStats.timestamp);
+      }
+      if (tokenWithStats.stats?.lastTradeTime) {
+        tokenWithStats.stats.lastTradeTime = new Date(tokenWithStats.stats.lastTradeTime);
+      }
+      
+      return tokenWithStats;
+    } catch (error) {
+      console.error('Failed to get token with stats from cache:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Invalidate token with stats cache
+   * Called when token data changes (new trade, metadata update)
+   */
+  async invalidateTokenWithStats(tokenAddress: string): Promise<void> {
+    try {
+      const key = this.KEYS.TOKEN_WITH_STATS(tokenAddress);
+      await this.redis.del(key);
+      console.log(`🗑️  Invalidated token with stats cache: ${tokenAddress}`);
+    } catch (error) {
+      console.error('Failed to invalidate token with stats:', error);
+    }
+  }
+
+  // ============================================================================
+  // HOLDER/TRADER RANKINGS CACHING (Task 8.2)
+  // ============================================================================
+
+  /**
+   * Cache holder rankings for a token
+   * TTL: 5 minutes
+   */
+  async cacheHolderRankings(tokenAddress: string, holders: any[]): Promise<void> {
+    try {
+      const key = this.KEYS.HOLDER_RANKINGS(tokenAddress);
+      await this.redis.set(key, JSON.stringify(holders));
+      await this.redis.expire(key, this.TTL.RANKINGS);
+      
+      console.log(`💾 Cached ${holders.length} holder rankings for ${tokenAddress}`);
+    } catch (error) {
+      console.error('Failed to cache holder rankings:', error);
+    }
+  }
+
+  /**
+   * Get holder rankings from cache
+   * Returns null if not found or expired
+   */
+  async getHolderRankings(tokenAddress: string): Promise<any[] | null> {
+    try {
+      const key = this.KEYS.HOLDER_RANKINGS(tokenAddress);
+      const data = await this.redis.get(key);
+      
+      if (!data) {
+        return null;
+      }
+      
+      return JSON.parse(data);
+    } catch (error) {
+      console.error('Failed to get holder rankings from cache:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Cache trader rankings for a token
+   * TTL: 5 minutes
+   */
+  async cacheTraderRankings(tokenAddress: string, traders: any[]): Promise<void> {
+    try {
+      const key = this.KEYS.TRADER_RANKINGS(tokenAddress);
+      await this.redis.set(key, JSON.stringify(traders));
+      await this.redis.expire(key, this.TTL.RANKINGS);
+      
+      console.log(`💾 Cached ${traders.length} trader rankings for ${tokenAddress}`);
+    } catch (error) {
+      console.error('Failed to cache trader rankings:', error);
+    }
+  }
+
+  /**
+   * Get trader rankings from cache
+   * Returns null if not found or expired
+   */
+  async getTraderRankings(tokenAddress: string): Promise<any[] | null> {
+    try {
+      const key = this.KEYS.TRADER_RANKINGS(tokenAddress);
+      const data = await this.redis.get(key);
+      
+      if (!data) {
+        return null;
+      }
+      
+      return JSON.parse(data);
+    } catch (error) {
+      console.error('Failed to get trader rankings from cache:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Invalidate holder and trader rankings for a token
+   * Called when new trade occurs
+   */
+  async invalidateRankings(tokenAddress: string): Promise<void> {
+    try {
+      const pipeline = this.redis.pipeline();
+      pipeline.del(this.KEYS.HOLDER_RANKINGS(tokenAddress));
+      pipeline.del(this.KEYS.TRADER_RANKINGS(tokenAddress));
+      await pipeline.exec();
+      
+      console.log(`🗑️  Invalidated rankings cache for ${tokenAddress}`);
+    } catch (error) {
+      console.error('Failed to invalidate rankings:', error);
+    }
+  }
+
+  // ============================================================================
+  // CACHE WARMING (Task 8.4)
+  // ============================================================================
+
+  /**
+   * Warm cache with top tokens on startup
+   * Caches the top N tokens by volume to improve initial response times
+   */
+  async warmCacheWithTopTokens(tokens: any[], limit: number = 100): Promise<void> {
+    try {
+      console.log(`[🔥 CACHE WARMING] Starting cache warming for ${Math.min(tokens.length, limit)} tokens...`);
+      
+      const startTime = Date.now();
+      const tokensToCache = tokens.slice(0, limit);
+      
+      // Cache tokens in parallel (but in batches to avoid overwhelming Redis)
+      const batchSize = 10;
+      for (let i = 0; i < tokensToCache.length; i += batchSize) {
+        const batch = tokensToCache.slice(i, i + batchSize);
+        
+        await Promise.all(
+          batch.map(async (token) => {
+            try {
+              await this.cacheTokenWithStats(token);
+            } catch (error) {
+              console.warn(`[⚠️  CACHE WARMING] Failed to cache token ${token.address}:`, error);
+            }
+          })
+        );
+      }
+      
+      const duration = Date.now() - startTime;
+      console.log(`[🔥 CACHE WARMING] Completed in ${duration}ms - cached ${tokensToCache.length} tokens`);
+    } catch (error) {
+      console.error('[❌ CACHE WARMING] Failed to warm cache:', error);
+      // Don't throw - cache warming failures should not break startup
     }
   }
 

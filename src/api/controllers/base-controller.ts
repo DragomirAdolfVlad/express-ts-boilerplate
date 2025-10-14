@@ -131,6 +131,8 @@ export abstract class BaseController {
 
     /**
      * Send error response
+     * Task 9.3: Consistent error response formatting
+     * Requirements: 9
      */
     protected error(
         res: Response,
@@ -138,11 +140,11 @@ export abstract class BaseController {
         statusCode?: number,
         details?: any
     ): Response {
-        let code = 'INTERNAL_SERVER_ERROR';
+        let code = 'INTERNAL_ERROR';
         let message = 'An internal server error occurred';
         let status = statusCode || 500;
 
-        // Handle known error types
+        // Handle known error types with consistent error codes
         if (error instanceof ValidationError) {
             code = 'VALIDATION_ERROR';
             message = error.message;
@@ -152,13 +154,14 @@ export abstract class BaseController {
             message = error.message;
             status = error.statusCode;
         } else if (error instanceof InternalServerError) {
-            code = 'INTERNAL_SERVER_ERROR';
+            code = 'INTERNAL_ERROR';
             message = error.message;
             status = error.statusCode;
         } else if (error.message) {
             message = error.message;
         }
 
+        // Consistent error response format with timestamp
         const response: ApiResponse = {
             success: false,
             error: {
@@ -167,6 +170,7 @@ export abstract class BaseController {
                 details
             },
             meta: {
+                // Timestamp in ISO 8601 format
                 timestamp: new Date().toISOString(),
                 requestId: res.getHeader('x-request-id') as string,
                 version: 'v1'
@@ -220,6 +224,8 @@ export abstract class BaseController {
 
     /**
      * Async handler wrapper for error handling
+     * Task 9.2: Enhanced error logging with request context
+     * Requirements: 9
      */
     protected asyncHandler(
         fn: (req: Request, res: Response, next: NextFunction) => Promise<any>
@@ -229,9 +235,21 @@ export abstract class BaseController {
 
             Promise.resolve(fn(req, res, next))
                 .catch((error) => {
+                    // Log error with comprehensive context including request params and stack trace
                     logger.error('Controller error', {
+                        controller: this.controllerName,
                         error: error.message,
-                        stack: error.stack
+                        errorName: error.name,
+                        stack: error.stack,
+                        // Request context
+                        method: req.method,
+                        path: req.path,
+                        query: req.query,
+                        params: req.params,
+                        // Timestamp
+                        timestamp: new Date().toISOString(),
+                        // Request ID for tracing
+                        requestId: req.headers['x-request-id'] as string
                     });
                     next(error);
                 });

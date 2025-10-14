@@ -282,11 +282,33 @@ export class MonadTokenRepositoryImpl implements MonadTokenRepository {
             const logIndex = trade.logIndex || 0;
             const uniqueTradeId = `${trade.transactionHash}:${logIndex}`;
 
-            // Upsert trade (idempotent on uniqueTradeId)
+            // Check if trade already exists (for idempotency)
+            const existingTrade = await this.prisma.monadTokenTrade.findFirst({
+                where: { uniqueTradeId }
+            });
+
             try {
-                await this.prisma.monadTokenTrade.upsert({
-                    where: { uniqueTradeId },
-                    create: {
+                if (existingTrade) {
+                    // Update existing trade
+                    await this.prisma.monadTokenTrade.update({
+                        where: { id: existingTrade.id },
+                        data: {
+                            // On reorg/commit-state changes, update these fields
+                            commitState: trade.commitState as any,
+                            blockNumber: trade.blockNumber,
+                            blockId: trade.blockId || 'unknown',
+                            usdSpotPrice: usdSpotPrice,
+                            curveProgress: curveProgress,
+                            marketCap: marketCap,
+                            liquidityUsd: liquidityUsd,
+                            virtualWmonReserve: this.bigIntToNumber(trade.reserves.reserve4, 18),
+                            virtualTokenReserve: this.bigIntToNumber(trade.reserves.reserve3, 18)
+                        }
+                    });
+                } else {
+                    // Create new trade
+                    await this.prisma.monadTokenTrade.create({
+                        data: {
                         tokenAddress: trade.tokenAddress,
                         signature: trade.transactionHash,
                         logIndex,
@@ -330,20 +352,9 @@ export class MonadTokenRepositoryImpl implements MonadTokenRepository {
                         virtualTokenReserve: this.bigIntToNumber(trade.reserves.reserve3, 18), // Virtual token
                         
                         usdSpotPrice: usdSpotPrice
-                    },
-                    update: {
-                        // On reorg/commit-state changes, update these fields
-                        commitState: trade.commitState as any,
-                        blockNumber: trade.blockNumber,
-                        blockId: trade.blockId || 'unknown',
-                        usdSpotPrice: usdSpotPrice,
-                        curveProgress: curveProgress,
-                        marketCap: marketCap,
-                        liquidityUsd: liquidityUsd,
-                        virtualWmonReserve: this.bigIntToNumber(trade.reserves.reserve4, 18),
-                        virtualTokenReserve: this.bigIntToNumber(trade.reserves.reserve3, 18)
-                    }
-                });
+                        }
+                    });
+                }
             } catch (dbError) {
                 console.error(`[❌ DB] Database insertion failed with values:`, {
                     wmonAmount,

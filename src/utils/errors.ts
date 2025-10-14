@@ -1,5 +1,15 @@
 /**
  * Custom error classes with proper inheritance
+ * 
+ * Task 9.1: Custom error classes for comprehensive error handling
+ * Requirements: 9
+ * 
+ * Error Classes:
+ * - ValidationError (400): Input validation failures
+ * - NotFoundError (404): Resource not found
+ * - InternalServerError (500): Internal server errors
+ * - DatabaseError (500): Database operation failures
+ * - And more...
  */
 
 export interface ErrorContext {

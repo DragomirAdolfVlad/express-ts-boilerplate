@@ -93,7 +93,7 @@ export async function startServer(): Promise<void> {
     // Initialize WMON price background service
     const { WmonPriceBackgroundService } = await import('./application/services/wmon-price-background.service');
     const priceService = new WmonPriceBackgroundService();
-    
+
     try {
         await priceService.start();
         log.info('WMON price background service started successfully');
@@ -123,6 +123,59 @@ export async function startServer(): Promise<void> {
             error: error instanceof Error ? error.message : String(error)
         });
         // Don't exit - the API should still work even if tracker fails
+    }
+
+    // Warm cache with top 100 tokens (Task 8.4)
+    try {
+        const { redisTrackerCache } = await import('./services/redis/tracker-cache.service');
+        
+        // Fetch top 100 tokens by volume
+        const topTokens = await prisma.monadLaunchedToken.findMany({
+            take: 100,
+            orderBy: { timestamp: 'desc' },
+            include: {
+                metadata: true,
+                tokenStats: true
+            }
+        });
+        
+        // Transform to TokenWithStats format
+        const tokensWithStats = topTokens.map((token: any) => ({
+            address: token.token,
+            name: token.name || token.metadata?.name || 'Unknown',
+            symbol: token.symbol || token.metadata?.symbol || 'UNKNOWN',
+            creator: token.creator,
+            bondingCurve: token.bondingCurve,
+            timestamp: token.timestamp,
+            metadata: token.metadata ? {
+                description: token.metadata.description || undefined,
+                image: token.metadata.image || undefined,
+                website: token.metadata.website ? JSON.stringify(token.metadata.website) : undefined,
+                twitter: token.metadata.twitter || undefined,
+                telegram: token.metadata.telegram || undefined
+            } : undefined,
+            stats: {
+                totalVolume: Number(token.tokenStats?.totalUsdVolume || 0),
+                totalTrades: token.tokenStats?.totalTxCount || 0,
+                buyCount: token.tokenStats?.buyCount || 0,
+                sellCount: token.tokenStats?.sellCount || 0,
+                marketCap: 0,
+                liquidityUsd: 0,
+                curveProgress: 0,
+                lastTradeTime: token.tokenStats?.lastTradeTime || new Date(),
+                proposedTrades: token.tokenStats?.proposedTrades || 0,
+                finalizedTrades: token.tokenStats?.finalizedTrades || 0,
+                verifiedTrades: token.tokenStats?.verifiedTrades || 0
+            }
+        }));
+        
+        await redisTrackerCache.warmCacheWithTopTokens(tokensWithStats, 100);
+        log.info('Cache warming completed successfully');
+    } catch (error) {
+        log.error('Failed to warm cache', {
+            error: error instanceof Error ? error.message : String(error)
+        });
+        // Don't exit - cache warming failures should not break startup
     }
 
     // Graceful shutdown handling
